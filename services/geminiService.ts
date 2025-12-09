@@ -1,7 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AlchemyElement, EmojiChallenge, DilemmaScenario } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Função segura para pegar a instância da IA apenas quando necessário
+// Isso evita que o site trave na inicialização (Tela Azul) se a chave der erro
+const getAI = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.error("API_KEY não encontrada!");
+    throw new Error("API Key missing");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 // Helper to clean JSON string if markdown blocks are present
 const cleanJson = (text: string): string => {
@@ -17,27 +26,19 @@ const getLanguage = (): string => {
 
 export const combineAlchemyElements = async (elem1: string, elem2: string): Promise<AlchemyElement | null> => {
   try {
+    const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    // Prompt ajustado para estilo "Infinite Craft": Criativo, infinito, mas com nomes simples (Substantivos).
     const prompt = `Act as the logic engine for an 'Infinite Craft' style game.
     Combine these two elements into a new single element: "${elem1}" + "${elem2}".
     
     Guidelines:
     1. Output a SINGLE noun or a standard compound noun (e.g., "Steam", "Mud", "Super Mario", "Black Hole").
-    2. Keep it simple! If A + B = C, and C is a common word, use C. Do not invent overly specific or descriptive names (e.g., avoid "Hot Boiling Water", just use "Steam").
+    2. Keep it simple! If A + B = C, and C is a common word, use C. Do not invent overly specific or descriptive names.
     3. Be grounded! Prioritize real-world objects, nature, science, or very famous pop culture.
-    4. Allow repeats: It is perfectly fine to output a word that is very common. Don't force uniqueness.
+    4. Allow repeats: It is perfectly fine to output a word that is very common.
     5. Language: ${lang}.
-    
-    Examples:
-    Fire + Water = Steam
-    Wind + Earth = Dust
-    Human + Robot = Cyborg
-    Anime + Ninja = Naruto
-    Ocean + Ice = Iceberg
-    Tree + Fire = Ash
     
     Return a JSON object with:
     - name: The new element name.
@@ -79,6 +80,7 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
 
 export const generateEmojiChallenge = async (exclude: string[] = []): Promise<EmojiChallenge | null> => {
   try {
+    const ai = getAI();
     const model = 'gemini-2.5-flash';
     const excludeStr = exclude.length > 0 ? `Do NOT generate any of these specifically: ${exclude.join(', ')}.` : '';
     const lang = getLanguage();
@@ -129,6 +131,7 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
 
 export const generateDilemma = async (): Promise<DilemmaScenario | null> => {
   try {
+    const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     const prompt = `Create a funny, absurd, or philosophical "Would You Rather" scenario.
