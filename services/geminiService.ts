@@ -21,22 +21,23 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    // Updated prompt for logical consistency closer to Infinite Craft
-    const prompt = `Act as a logical alchemy engine similar to 'Infinite Craft'.
+    // Prompt ajustado para estilo "Infinite Craft": Criativo, infinito, mas com nomes simples (Substantivos).
+    const prompt = `Act as the logic engine for an 'Infinite Craft' style game.
     Combine these two elements into a new single element: "${elem1}" + "${elem2}".
     
-    Rules:
-    1. Result must be a SHORT noun (1 or 2 words max). No long phrases.
-    2. Prioritize literal, scientific, or strong pop-culture associations.
-    3. Avoid abstract metaphors unless commonly known.
-    4. Language: ${lang}.
+    Guidelines:
+    1. Output a SINGLE noun or a standard compound noun (e.g., "Steam", "Mud", "Super Mario", "Black Hole").
+    2. Keep it simple! If A + B = C, and C is a common word, use C. Do not invent overly specific or descriptive names (e.g., avoid "Hot Boiling Water", just use "Steam").
+    3. Be creative! You can use Pop Culture, Science, History, Mythology, or Memes if they fit the combination logically or pun-wise.
+    4. Allow repeats: It is perfectly fine to output a word that is very common. Don't force uniqueness if the simple answer is best.
+    5. Language: ${lang}.
     
     Examples:
     Fire + Water = Steam
-    Earth + Water = Mud
     Wind + Earth = Dust
-    Steam + Air = Cloud
-    Tree + Fire = Ash
+    Human + Robot = Cyborg
+    Anime + Ninja = Naruto
+    Ocean + Ice = Iceberg
     
     Return a JSON object with:
     - name: The new element name.
