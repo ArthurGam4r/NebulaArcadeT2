@@ -1,12 +1,33 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AlchemyElement, EmojiChallenge, DilemmaScenario } from '../types';
 
-// Função segura para pegar a instância da IA apenas quando necessário
-// Isso evita que o site trave na inicialização (Tela Azul) se a chave der erro
+// Função para obter a chave API de várias fontes
+const getApiKey = (): string | null => {
+  // 1. Tenta pegar do armazenamento local (inserido pelo usuário na tela inicial)
+  if (typeof localStorage !== 'undefined') {
+    const localKey = localStorage.getItem('gemini_api_key');
+    if (localKey) return localKey;
+  }
+  
+  // 2. Tenta pegar do ambiente (build/env var)
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+
+  // 3. Fallback para window.process se existir (polyfill antigo)
+  // @ts-ignore
+  if (typeof window !== 'undefined' && window.process && window.process.env && window.process.env.API_KEY) {
+    // @ts-ignore
+    return window.process.env.API_KEY;
+  }
+
+  return null;
+};
+
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    console.error("API_KEY não encontrada!");
+    console.error("API Key missing. Redirecionando para setup...");
     throw new Error("API Key missing");
   }
   return new GoogleGenAI({ apiKey });

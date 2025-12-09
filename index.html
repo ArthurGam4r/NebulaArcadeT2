@@ -6,15 +6,6 @@
     <title>Nebula Arcade</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-      // Garante que 'process' exista para evitar crash
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
-      // Se a variável de ambiente não for injetada pelo build, usa string vazia para não quebrar
-      if (!window.process.env.API_KEY) {
-         window.process.env.API_KEY = ''; 
-      }
-    </script>
     <style>
       body {
         font-family: 'Space Grotesk', sans-serif;
@@ -35,16 +26,39 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #64748b; 
       }
+      
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.5s ease-out forwards;
+      }
+      .animate-bounce-slow {
+        animation: bounce 3s infinite;
+      }
+      .animate-bounce-short {
+        animation: bounce 0.5s 1;
+      }
+      .animate-shake {
+        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+      }
+      @keyframes shake {
+        10%, 90% { transform: translate3d(-1px, 0, 0); }
+        20%, 80% { transform: translate3d(2px, 0, 0); }
+        30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+        40%, 60% { transform: translate3d(4px, 0, 0); }
+      }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.32.0",
     "vite": "https://aistudiocdn.com/vite@^7.2.7",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2",
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
