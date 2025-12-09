@@ -1,36 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AlchemyElement, EmojiChallenge, DilemmaScenario } from '../types';
 
-// Função para obter a chave API de várias fontes
-const getApiKey = (): string | null => {
-  // 1. Tenta pegar do armazenamento local (inserido pelo usuário na tela inicial)
-  if (typeof localStorage !== 'undefined') {
-    const localKey = localStorage.getItem('gemini_api_key');
-    if (localKey) return localKey;
-  }
-  
-  // 2. Tenta pegar do ambiente (build/env var)
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
-  }
-
-  // 3. Fallback para window.process se existir (polyfill antigo)
-  // @ts-ignore
-  if (typeof window !== 'undefined' && window.process && window.process.env && window.process.env.API_KEY) {
-    // @ts-ignore
-    return window.process.env.API_KEY;
-  }
-
-  return null;
-};
-
 const getAI = () => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    console.error("API Key missing. Redirecionando para setup...");
-    throw new Error("API Key missing");
-  }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Helper to clean JSON string if markdown blocks are present
@@ -105,10 +77,10 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    // Convert exclusion list to a string, limiting size to prevent token overflow if game goes on forever
-    const excludeList = exclude.slice(-50).join(', '); 
+    // Lista de exclusão mais agressiva
+    const excludeList = exclude.join(', '); 
     const excludePrompt = excludeList.length > 0 
-        ? `CRITICAL RULE: DO NOT generate any of these titles: [${excludeList}]. Choose something different.` 
+        ? `CRITICAL: The user has ALREADY played these: [${excludeList}]. DO NOT generate any of these again.` 
         : '';
 
     const prompt = `Generate a WORLD FAMOUS, GLOBAL BLOCKBUSTER Movie, Video Game, or Book title.
@@ -117,11 +89,12 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
     
     Guidelines:
     1. Scope: Only choose titles that are extremely recognizable globally (e.g., Marvel, Disney, Star Wars, Harry Potter, Titanic, GTA, Mario). Avoid obscure indie films.
-    2. Naming: For franchises, output ONLY the main saga name. 
+    2. Naming: OUTPUT ONLY THE MAIN SAGA NAME. Remove subtitles.
        - CORRECT: "Star Wars", "Harry Potter", "Lord of the Rings", "Mission Impossible".
-       - INCORRECT: "Star Wars: Episode IV", "Harry Potter and the Goblet of Fire".
+       - INCORRECT: "Star Wars: Episode IV", "Harry Potter and the Goblet of Fire", "Mission: Impossible - Dead Reckoning".
     3. Output Language: ${lang}.
     4. Emojis: Use 2 to 5 emojis to represent the plot or characters.
+    5. NO DUPLICATES from the excluded list.
     
     Return JSON with keys: 
     - "answer" (The simplified title in ${lang})

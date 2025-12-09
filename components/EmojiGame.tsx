@@ -61,12 +61,13 @@ const EmojiGame: React.FC = () => {
     setHintsRevealedCount(0);
     setGuess('');
     
-    // Tenta obter um desafio. Se for repetido (mesmo com o prompt), tenta de novo.
+    // Tenta obter um desafio. Passa o histórico TODO para exclusão.
     let data = await generateEmojiChallenge(currentHistory);
     let attempts = 0;
 
-    // Retry logic no cliente se vier repetido
-    while (data && currentHistory.includes(data.answer) && attempts < 2) {
+    // Retry logic no cliente se vier repetido (caso a IA ignore o prompt)
+    // Normaliza para comparar sem case sensitivity
+    while (data && currentHistory.some(h => h.toLowerCase() === data?.answer.toLowerCase()) && attempts < 3) {
         console.log("Duplicate received, retrying...", data.answer);
         data = await generateEmojiChallenge([...currentHistory, data.answer]);
         attempts++;
