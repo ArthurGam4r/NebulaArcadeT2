@@ -1,8 +1,29 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AlchemyElement, EmojiChallenge, DilemmaScenario } from '../types';
 
+// Store key in memory/localStorage since we can't write to process.env at runtime in browser
+const getApiKey = (): string | undefined => {
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem('gemini_api_key') || undefined;
+  }
+  // Fallback to build-time env var if available
+  return process.env.API_KEY;
+};
+
+export const hasApiKey = (): boolean => {
+  return !!getApiKey();
+};
+
+export const setApiKey = (key: string) => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('gemini_api_key', key);
+  }
+};
+
 const getAI = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const key = getApiKey();
+  if (!key) throw new Error("API Key Missing");
+  return new GoogleGenAI({ apiKey: key });
 };
 
 // Helper to clean JSON string if markdown blocks are present
@@ -12,9 +33,9 @@ const cleanJson = (text: string): string => {
 
 const getLanguage = (): string => {
   if (typeof navigator !== 'undefined') {
-    return navigator.language.startsWith('pt') ? 'Portuguese' : 'English';
+    return navigator.language.startsWith('pt') ? 'Portuguese (Brazil)' : 'English';
   }
-  return 'Portuguese';
+  return 'Portuguese (Brazil)';
 };
 
 export const combineAlchemyElements = async (elem1: string, elem2: string): Promise<AlchemyElement | null> => {
@@ -89,10 +110,13 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
     
     Guidelines:
     1. Scope: Only choose titles that are extremely recognizable globally (e.g., Marvel, Disney, Star Wars, Harry Potter, Titanic, GTA, Mario). Avoid obscure indie films.
-    2. Naming: OUTPUT ONLY THE MAIN SAGA NAME. Remove subtitles.
-       - CORRECT: "Star Wars", "Harry Potter", "Lord of the Rings", "Mission Impossible".
-       - INCORRECT: "Star Wars: Episode IV", "Harry Potter and the Goblet of Fire", "Mission: Impossible - Dead Reckoning".
-    3. Output Language: ${lang}.
+    2. Naming: 
+       - OUTPUT THE COMMERCIAL NAME USED IN ${lang}.
+       - IF the English title is commonly used in ${lang} (e.g. "Jurassic Park", "Star Wars", "Black Mirror", "Top Gun"), USE THE ENGLISH TITLE.
+       - Do NOT translate titles that are not usually translated (e.g. Do NOT write "Parque Jurássico", write "Jurassic Park").
+       - Only translate if it's the standard (e.g. "The Godfather" -> "O Poderoso Chefão").
+       - REMOVE subtitles (e.g. "Star Wars: Episode IV" -> "Star Wars").
+    3. Output Language for hints/answer: ${lang}.
     4. Emojis: Use 2 to 5 emojis to represent the plot or characters.
     5. NO DUPLICATES from the excluded list.
     

@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameType } from './types';
 import AlchemyGame from './components/AlchemyGame';
 import EmojiGame from './components/EmojiGame';
 import DilemmaGame from './components/DilemmaGame';
+import { hasApiKey, setApiKey } from './services/geminiService';
 
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
+  const [isSetup, setIsSetup] = useState<boolean>(false);
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
+
+  useEffect(() => {
+    setIsSetup(hasApiKey());
+  }, []);
+
+  if (!isSetup) {
+      return <SetupScreen onComplete={() => setIsSetup(true)} />;
+  }
 
   const renderGame = () => {
     switch (activeGame) {
@@ -61,6 +71,67 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const SetupScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+    const [key, setKey] = useState('');
+    const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (key.trim().length > 10) {
+            setApiKey(key.trim());
+            onComplete();
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-4">
+            <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl">
+                <div className="text-center mb-6">
+                     <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mx-auto mb-4">
+                        <span className="text-2xl">🔐</span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">{isPt ? 'Configuração Inicial' : 'Initial Setup'}</h2>
+                    <p className="text-slate-400 text-sm">{isPt ? 'Para jogar, você precisa de uma chave API do Google Gemini.' : 'To play, you need a Google Gemini API Key.'}</p>
+                </div>
+
+                <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-lg mb-6">
+                    <p className="text-yellow-400 text-xs font-bold uppercase tracking-wide mb-1">⚠️ {isPt ? 'Atenção Streamers' : 'Streamer Warning'}</p>
+                    <p className="text-yellow-200/80 text-sm">
+                        {isPt ? 'A chave API dá acesso à sua conta. Cubra a tela ou corte essa parte do vídeo ao inserir a chave.' : 'The API key grants access to your account. Cover the screen or cut this part of the video when entering the key.'}
+                    </p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    <div>
+                        <label className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-2 block">Gemini API Key</label>
+                        <input 
+                            type="password" 
+                            value={key}
+                            onChange={(e) => setKey(e.target.value)}
+                            placeholder="AIzaSy..."
+                            className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple-500 transition-colors"
+                        />
+                    </div>
+                    <button 
+                        type="submit" 
+                        disabled={key.length < 10}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 px-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                        {isPt ? 'Salvar e Entrar' : 'Save & Enter'}
+                    </button>
+                </form>
+
+                <p className="text-center mt-6 text-xs text-slate-600">
+                    {isPt ? 'A chave é salva apenas no seu navegador.' : 'The key is saved locally in your browser.'} <br/>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline mt-2 inline-block">
+                        {isPt ? 'Obter chave grátis aqui' : 'Get free key here'}
+                    </a>
+                </p>
+            </div>
+        </div>
+    )
+}
 
 interface HomeGridProps {
   onSelect: (game: GameType) => void;
