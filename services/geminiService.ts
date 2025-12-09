@@ -107,7 +107,8 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
     const lang = getLanguage();
 
     const prompt = `Generate a WORLD FAMOUS, GLOBAL BLOCKBUSTER Movie, Video Game, or Book title. 
-    Strict Rule: Only choose titles that are extremely recognizable globally (e.g., Marvel, Disney, Star Wars, Harry Potter, Titanic, GTA, Mario). Avoid obscure indie films.
+    Strict Rule 1: Only choose titles that are extremely recognizable globally (e.g., Marvel, Disney, Star Wars, Harry Potter, Titanic, GTA, Mario). Avoid obscure indie films.
+    Strict Rule 2: For franchises, output ONLY the main saga name. Example: Use "Star Wars" (NOT "Star Wars: Episode IV"), use "Harry Potter" (NOT "Harry Potter and the Philosopher's Stone"), use "The Lord of the Rings" (NOT "...The Fellowship of the Ring"). Keep it simple.
     ${excludeStr}
     Represent it using 2 to 5 emojis. 
     

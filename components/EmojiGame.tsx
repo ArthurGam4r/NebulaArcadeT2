@@ -5,7 +5,7 @@ import { generateEmojiChallenge } from '../services/geminiService';
 const EmojiGame: React.FC = () => {
   const [challenge, setChallenge] = useState<EmojiChallenge | null>(null);
   const [guess, setGuess] = useState('');
-  const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'WRONG'>('IDLE');
+  const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'WRONG' | 'REVEAL'>('IDLE');
   
   // Game State
   const [history, setHistory] = useState<string[]>([]);
@@ -31,14 +31,16 @@ const EmojiGame: React.FC = () => {
       negativeWarning: isPt ? "Sua reputação está negativa! Acerte para recuperar." : "Your reputation is negative! Guess right to recover.",
       loading: isPt ? "Criando enigma inédito..." : "Creating unique puzzle...",
       correct: isPt ? "Correto!" : "Correct!",
-      was: isPt ? "Era:" : "It was:",
+      was: isPt ? "A resposta era:" : "The answer was:",
       next: isPt ? "Próximo Nível (+20 XP)" : "Next Level (+20 XP)",
+      nextLose: isPt ? "Próximo Desafio" : "Next Challenge",
       placeholder: isPt ? "Que obra é essa?" : "What title is this?",
       wrong: isPt ? "Incorreto! Tente novamente ou peça uma dica." : "Wrong! Try again or buy a hint.",
       buyHint: isPt ? "Comprar Dica" : "Buy Hint",
       answerBtn: isPt ? "Responder" : "Submit Answer",
       skip: isPt ? "Desistir e Pular (-20 XP)" : "Give up & Skip (-20 XP)",
-      error: isPt ? "Erro ao carregar. Tente recarregar." : "Error loading. Try reloading."
+      error: isPt ? "Erro ao carregar. Tente recarregar." : "Error loading. Try reloading.",
+      failTitle: isPt ? "Que pena!" : "Too bad!"
   };
 
   const fetchChallenge = async () => {
@@ -86,6 +88,9 @@ const EmojiGame: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!challenge) return;
+    
+    // Ignora input vazio
+    if (!guess.trim()) return;
 
     // Simple normalization for comparison
     const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -103,9 +108,10 @@ const EmojiGame: React.FC = () => {
   };
 
   const handleSkip = () => {
+      if (!challenge) return;
       setStreak(0);
       adjustXp(-20); // Penalidade por pular
-      fetchChallenge();
+      setStatus('REVEAL'); // Mostra a resposta em vez de carregar novo imediatamente
   }
 
   const levelTitle = getLevelTitle(xp);
@@ -188,7 +194,19 @@ const EmojiGame: React.FC = () => {
                         {t.next}
                     </button>
                  </div>
-               ) : (
+               ) : status === 'REVEAL' ? (
+                <div className="bg-red-500/20 border border-red-500 rounded-lg p-6 text-center animate-fade-in">
+                   <p className="text-red-400 font-bold text-2xl mb-2">{t.failTitle}</p>
+                   <p className="text-white text-lg mb-4">{t.was} <span className="font-bold text-red-300">{challenge.answer}</span></p>
+                   <button 
+                       type="button"
+                       onClick={fetchChallenge}
+                       className="bg-red-600 hover:bg-red-500 text-white px-8 py-3 rounded-full font-bold transition-transform transform hover:scale-105 shadow-lg shadow-red-900/50"
+                   >
+                       {t.nextLose}
+                   </button>
+                </div>
+              ) : (
                  <>
                     <input 
                         type="text" 
