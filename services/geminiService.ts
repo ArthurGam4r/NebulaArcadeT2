@@ -103,24 +103,30 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
   try {
     const ai = getAI();
     const model = 'gemini-2.5-flash';
-    const excludeStr = exclude.length > 0 ? `Do NOT generate any of these specifically: ${exclude.join(', ')}.` : '';
     const lang = getLanguage();
+    
+    // Convert exclusion list to a string, limiting size to prevent token overflow if game goes on forever
+    const excludeList = exclude.slice(-50).join(', '); 
+    const excludePrompt = excludeList.length > 0 
+        ? `CRITICAL RULE: DO NOT generate any of these titles: [${excludeList}]. Choose something different.` 
+        : '';
 
-    const prompt = `Generate a WORLD FAMOUS, GLOBAL BLOCKBUSTER Movie, Video Game, or Book title. 
-    Strict Rule 1: Only choose titles that are extremely recognizable globally (e.g., Marvel, Disney, Star Wars, Harry Potter, Titanic, GTA, Mario). Avoid obscure indie films.
-    Strict Rule 2: For franchises, output ONLY the main saga name. Example: Use "Star Wars" (NOT "Star Wars: Episode IV"), use "Harry Potter" (NOT "Harry Potter and the Philosopher's Stone"), use "The Lord of the Rings" (NOT "...The Fellowship of the Ring"). Keep it simple.
-    ${excludeStr}
-    Represent it using 2 to 5 emojis. 
+    const prompt = `Generate a WORLD FAMOUS, GLOBAL BLOCKBUSTER Movie, Video Game, or Book title.
+    
+    ${excludePrompt}
+    
+    Guidelines:
+    1. Scope: Only choose titles that are extremely recognizable globally (e.g., Marvel, Disney, Star Wars, Harry Potter, Titanic, GTA, Mario). Avoid obscure indie films.
+    2. Naming: For franchises, output ONLY the main saga name. 
+       - CORRECT: "Star Wars", "Harry Potter", "Lord of the Rings", "Mission Impossible".
+       - INCORRECT: "Star Wars: Episode IV", "Harry Potter and the Goblet of Fire".
+    3. Output Language: ${lang}.
+    4. Emojis: Use 2 to 5 emojis to represent the plot or characters.
     
     Return JSON with keys: 
-    - "answer" (The title in ${lang})
+    - "answer" (The simplified title in ${lang})
     - "emojis"
-    - "hints": An array of 5 strings in ${lang}. 
-      Hint 1 must be vague (Genre/Year). 
-      Hint 2 slightly specific (Plot theme). 
-      Hint 3 specific (Main character name or actor). 
-      Hint 4 very specific (Famous scene or director). 
-      Hint 5 give-away (A famous quote or alternate title).
+    - "hints": An array of 5 strings in ${lang} (Progressive difficulty: 1=Vague, 5=Obvious).
       `;
 
     const response = await ai.models.generateContent({

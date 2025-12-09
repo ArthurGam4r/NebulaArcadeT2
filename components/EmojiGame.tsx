@@ -7,14 +7,21 @@ const EmojiGame: React.FC = () => {
   const [guess, setGuess] = useState('');
   const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'WRONG' | 'REVEAL'>('IDLE');
   
-  // Game State
-  const [history, setHistory] = useState<string[]>([]);
+  // Game State - Load history from localStorage
+  const [history, setHistory] = useState<string[]>(() => {
+    if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('emoji_history');
+        return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+
   const [streak, setStreak] = useState(0);
   
   // Hints
   const [hintsRevealedCount, setHintsRevealedCount] = useState(0);
   
-  // Specialist Bar State (Unlimited, can go negative)
+  // Specialist Bar State
   const [xp, setXp] = useState(0);
 
   // Localization
@@ -40,15 +47,30 @@ const EmojiGame: React.FC = () => {
       answerBtn: isPt ? "Responder" : "Submit Answer",
       skip: isPt ? "Desistir e Pular (-20 XP)" : "Give up & Skip (-20 XP)",
       error: isPt ? "Erro ao carregar. Tente recarregar." : "Error loading. Try reloading.",
-      failTitle: isPt ? "Que pena!" : "Too bad!"
+      failTitle: isPt ? "Que pena!" : "Too bad!",
+      resetHistory: isPt ? "Limpar Histórico" : "Clear History"
   };
 
-  const fetchChallenge = async () => {
+  // Save history whenever it changes
+  useEffect(() => {
+      localStorage.setItem('emoji_history', JSON.stringify(history));
+  }, [history]);
+
+  const fetchChallenge = async (currentHistory: string[] = history) => {
     setStatus('LOADING');
     setHintsRevealedCount(0);
     setGuess('');
     
-    const data = await generateEmojiChallenge(history);
+    // Tenta obter um desafio. Se for repetido (mesmo com o prompt), tenta de novo.
+    let data = await generateEmojiChallenge(currentHistory);
+    let attempts = 0;
+
+    // Retry logic no cliente se vier repetido
+    while (data && currentHistory.includes(data.answer) && attempts < 2) {
+        console.log("Duplicate received, retrying...", data.answer);
+        data = await generateEmojiChallenge([...currentHistory, data.answer]);
+        attempts++;
+    }
     
     if (data) {
       setChallenge(data);
@@ -56,9 +78,15 @@ const EmojiGame: React.FC = () => {
     }
   };
 
+  // Initial load
   useEffect(() => {
-    fetchChallenge();
-  }, []);
+    fetchChallenge(history);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
+
+  const handleNextLevel = () => {
+      fetchChallenge(history);
+  }
 
   const adjustXp = (amount: number) => {
     setXp(prev => prev + amount);
@@ -98,8 +126,16 @@ const EmojiGame: React.FC = () => {
     if (normalize(guess).includes(normalize(challenge.answer)) || normalize(challenge.answer).includes(normalize(guess))) {
       setStatus('SUCCESS');
       setStreak(s => s + 1);
-      setHistory(prev => [...prev, challenge.answer]);
-      adjustXp(20); // Changed from 50 to 20 per request
+      
+      // Update history state
+      setHistory(prev => {
+          if (!prev.includes(challenge.answer)) {
+              return [...prev, challenge.answer];
+          }
+          return prev;
+      });
+
+      adjustXp(20);
     } else {
       setStatus('WRONG');
       setStreak(0);
@@ -111,7 +147,21 @@ const EmojiGame: React.FC = () => {
       if (!challenge) return;
       setStreak(0);
       adjustXp(-20); // Penalidade por pular
-      setStatus('REVEAL'); // Mostra a resposta em vez de carregar novo imediatamente
+      setStatus('REVEAL'); // Mostra a resposta
+      
+      // Adiciona ao histórico mesmo se pulou, pra não aparecer de novo
+      setHistory(prev => {
+        if (!prev.includes(challenge.answer)) {
+            return [...prev, challenge.answer];
+        }
+        return prev;
+    });
+  }
+
+  const clearHistory = () => {
+      setHistory([]);
+      localStorage.removeItem('emoji_history');
+      window.location.reload();
   }
 
   const levelTitle = getLevelTitle(xp);
@@ -130,10 +180,14 @@ const EmojiGame: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto p-4 animate-fade-in">
-      <div className="text-center mb-6 w-full">
+      <div className="text-center mb-6 w-full relative">
         <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-orange-500">
           {t.title}
         </h2>
+
+        <button onClick={clearHistory} className="absolute top-0 right-0 text-[10px] text-slate-600 hover:text-slate-400 uppercase tracking-widest">
+            {t.resetHistory}
+        </button>
         
         {/* Specialist Bar */}
         <div className="mt-4 max-w-md mx-auto">
@@ -188,7 +242,7 @@ const EmojiGame: React.FC = () => {
                     <p className="text-white text-lg mb-4">{t.was} <span className="font-bold">{challenge.answer}</span></p>
                     <button 
                         type="button"
-                        onClick={fetchChallenge}
+                        onClick={handleNextLevel}
                         className="bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-full font-bold transition-transform transform hover:scale-105 shadow-lg shadow-green-900/50"
                     >
                         {t.next}
@@ -200,7 +254,7 @@ const EmojiGame: React.FC = () => {
                    <p className="text-white text-lg mb-4">{t.was} <span className="font-bold text-red-300">{challenge.answer}</span></p>
                    <button 
                        type="button"
-                       onClick={fetchChallenge}
+                       onClick={handleNextLevel}
                        className="bg-red-600 hover:bg-red-500 text-white px-8 py-3 rounded-full font-bold transition-transform transform hover:scale-105 shadow-lg shadow-red-900/50"
                    >
                        {t.nextLose}
