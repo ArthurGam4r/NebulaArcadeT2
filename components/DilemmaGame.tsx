@@ -8,7 +8,7 @@ const DilemmaGame: React.FC = () => {
   const [result, setResult] = useState<'A' | 'B' | null>(null);
 
   // Localization
-  const isPt = navigator.language.startsWith('pt');
+  const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
   const t = {
       title: isPt ? "Dilema Absurdo" : "Absurd Dilemma",
       subtitle: isPt ? "O que você faria nessa situação?" : "What would you do in this situation?",

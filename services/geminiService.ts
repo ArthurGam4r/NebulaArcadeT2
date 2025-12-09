@@ -1,8 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AlchemyElement, EmojiChallenge, DilemmaScenario } from '../types';
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Helper to clean JSON string if markdown blocks are present
 const cleanJson = (text: string): string => {
@@ -28,8 +27,8 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
     Guidelines:
     1. Output a SINGLE noun or a standard compound noun (e.g., "Steam", "Mud", "Super Mario", "Black Hole").
     2. Keep it simple! If A + B = C, and C is a common word, use C. Do not invent overly specific or descriptive names (e.g., avoid "Hot Boiling Water", just use "Steam").
-    3. Be creative! You can use Pop Culture, Science, History, Mythology, or Memes if they fit the combination logically or pun-wise.
-    4. Allow repeats: It is perfectly fine to output a word that is very common. Don't force uniqueness if the simple answer is best.
+    3. Be grounded! Prioritize real-world objects, nature, science, or very famous pop culture.
+    4. Allow repeats: It is perfectly fine to output a word that is very common. Don't force uniqueness.
     5. Language: ${lang}.
     
     Examples:
@@ -38,6 +37,7 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
     Human + Robot = Cyborg
     Anime + Ninja = Naruto
     Ocean + Ice = Iceberg
+    Tree + Fire = Ash
     
     Return a JSON object with:
     - name: The new element name.

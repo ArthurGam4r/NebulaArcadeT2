@@ -2,7 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { AlchemyElement, LoaderState } from '../types';
 import { combineAlchemyElements } from '../services/geminiService';
 
-const isPt = navigator.language.startsWith('pt');
+const getInitialLanguage = () => {
+    if (typeof navigator !== 'undefined') {
+        return navigator.language.startsWith('pt');
+    }
+    return true; // Default to PT if unknown
+};
+
+const isPt = getInitialLanguage();
 
 const INITIAL_ELEMENTS: AlchemyElement[] = isPt ? [
   { id: '1', name: 'Água', emoji: '💧' },
@@ -35,6 +42,7 @@ const AlchemyGame: React.FC = () => {
       combine: isPt ? "Combinar" : "Combine",
       created: isPt ? "Você criou:" : "You created:",
       newDiscovery: isPt ? "NOVA DESCOBERTA" : "NEW DISCOVERY",
+      rediscovery: isPt ? "JÁ DESCOBERTO" : "ALREADY DISCOVERED",
       yourElements: isPt ? "Seus Elementos" : "Your Elements",
       reset: isPt ? "Resetar" : "Reset",
       resetConfirm: isPt ? "Reiniciar todo o progresso?" : "Reset all progress?"
@@ -57,8 +65,6 @@ const AlchemyGame: React.FC = () => {
     
     setLoading(true);
     setRecentResult(null);
-
-    // Check if combo exists in history (optional optimization, skipping for pure AI fun)
     
     const newEl = await combineAlchemyElements(selected[0].name, selected[1].name);
     
@@ -69,6 +75,7 @@ const AlchemyGame: React.FC = () => {
         setElements(prev => [newEl, ...prev]);
         setRecentResult(newEl);
       } else {
+        // We still show the result, but mark it as old
         setRecentResult({ ...exists, isNew: false });
       }
     }
@@ -137,11 +144,13 @@ const AlchemyGame: React.FC = () => {
         </div>
 
         {recentResult && !loading && (
-             <div className="mt-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-3 animate-bounce-short">
+             <div className={`mt-6 p-4 rounded-lg flex items-center gap-3 animate-bounce-short ${recentResult.isNew ? 'bg-green-500/10 border border-green-500/30' : 'bg-slate-500/10 border border-slate-500/30'}`}>
                 <span className="text-3xl">{recentResult.emoji}</span>
                 <div>
-                    <p className="font-bold text-green-400">{t.created} {recentResult.name}!</p>
-                    {recentResult.isNew && <span className="text-xs text-yellow-300 font-bold tracking-wider">{t.newDiscovery}</span>}
+                    <p className={`font-bold ${recentResult.isNew ? 'text-green-400' : 'text-slate-300'}`}>{t.created} {recentResult.name}!</p>
+                    <span className={`text-[10px] font-bold tracking-wider ${recentResult.isNew ? 'text-yellow-300' : 'text-slate-500'}`}>
+                        {recentResult.isNew ? t.newDiscovery : t.rediscovery}
+                    </span>
                 </div>
              </div>
         )}

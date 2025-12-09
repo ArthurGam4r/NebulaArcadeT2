@@ -6,6 +6,7 @@ import DilemmaGame from './components/DilemmaGame';
 
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
+  const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
 
   const renderGame = () => {
     switch (activeGame) {
@@ -39,7 +40,7 @@ const App: React.FC = () => {
                     onClick={() => setActiveGame(GameType.NONE)}
                     className="text-sm font-medium text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-3 py-1.5 rounded-md hover:bg-slate-700"
                 >
-                    ← {navigator.language.startsWith('pt') ? 'Voltar' : 'Back'}
+                    ← {isPt ? 'Voltar' : 'Back'}
                 </button>
             )}
         </div>
@@ -53,7 +54,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="py-6 border-t border-slate-800 text-center text-slate-500 text-xs relative z-10 bg-[#0f172a]">
-        <p>Powered by Gemini API • {navigator.language.startsWith('pt') ? 'Criado com React & Tailwind' : 'Built with React & Tailwind'}</p>
+        <p>Powered by Gemini API • {isPt ? 'Criado com React & Tailwind' : 'Built with React & Tailwind'}</p>
       </footer>
     </div>
   );
@@ -64,7 +65,7 @@ interface HomeGridProps {
 }
 
 const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
-  const isPt = navigator.language.startsWith('pt');
+  const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
   
   const t = {
       heroTitle: isPt ? "Explore o Infinito" : "Explore the Infinite",

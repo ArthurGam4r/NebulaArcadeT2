@@ -18,7 +18,7 @@ const EmojiGame: React.FC = () => {
   const [xp, setXp] = useState(0);
 
   // Localization
-  const isPt = navigator.language.startsWith('pt');
+  const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
   const t = {
       title: isPt ? "Detetive de Emojis" : "Emoji Detective",
       rank: isPt ? "Rank" : "Rank",
