@@ -47,6 +47,14 @@ const getLanguage = (): string => {
   return 'Portuguese (Brazil)';
 };
 
+// Custom Error for Quota
+export class QuotaExceededError extends Error {
+  constructor() {
+    super("Quota Exceeded");
+    this.name = "QuotaExceededError";
+  }
+}
+
 const retryWithBackoff = async <T>(
   operation: () => Promise<T>,
   retries: number = 3,
@@ -58,13 +66,24 @@ const retryWithBackoff = async <T>(
     try {
       return await operation();
     } catch (error: any) {
+      // Check for hard quota limits (Resource Exhausted) - DO NOT RETRY
+      const errorMessage = error.message?.toLowerCase() || '';
+      const status = error.status || error.response?.status;
+      
+      if (
+        status === 'RESOURCE_EXHAUSTED' || 
+        status === 429 && errorMessage.includes('quota') ||
+        errorMessage.includes('resource exhausted')
+      ) {
+        throw new QuotaExceededError();
+      }
+
+      // Check for retryable rate limits
       const isRetryable = 
-        error.status === 429 || 
-        error.status === 503 ||
-        error.message?.includes('429') || 
-        error.message?.toLowerCase().includes('quota') ||
-        error.message?.toLowerCase().includes('limit') ||
-        error.message?.toLowerCase().includes('overloaded');
+        status === 429 || 
+        status === 503 ||
+        errorMessage.includes('429') || 
+        errorMessage.includes('overloaded');
 
       if (isRetryable && i < retries - 1) {
         console.warn(`API Rate limit hit. Retrying in ${currentDelay}ms...`);
@@ -151,7 +170,7 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
 
   } catch (error) {
     console.error("Alchemy Error:", error);
-    return null;
+    throw error;
   }
 };
 
@@ -201,7 +220,7 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
 
   } catch (error) {
     console.error("Emoji Error:", error);
-    return null;
+    throw error;
   }
 };
 
@@ -239,7 +258,7 @@ export const generateDilemma = async (): Promise<DilemmaScenario | null> => {
     return null;
   } catch (error) {
     console.error("Dilemma Error:", error);
-    return null;
+    throw error;
   }
 };
 
@@ -275,7 +294,7 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
     return null;
   } catch (error) {
     console.error("Ladder Error:", error);
-    return null;
+    throw error;
   }
 };
 
@@ -311,6 +330,7 @@ export const validateLadderStep = async (current: string, target: string, guess:
         if (response.text) return JSON.parse(cleanJson(response.text));
         return { isValid: false, message: "Error" };
     } catch (error) {
-        return { isValid: false, message: "Connection error" };
+        console.error("Ladder Validation Error:", error);
+        throw error;
     }
 };

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { DilemmaScenario } from '../types';
-import { generateDilemma } from '../services/geminiService';
+import { generateDilemma, removeApiKey } from '../services/geminiService';
 
 const DilemmaGame: React.FC = () => {
   const [scenario, setScenario] = useState<DilemmaScenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<'A' | 'B' | null>(null);
+  const [quotaError, setQuotaError] = useState(false);
 
   // Localization
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
@@ -14,15 +15,26 @@ const DilemmaGame: React.FC = () => {
       subtitle: isPt ? "O que você faria nessa situação?" : "What would you do in this situation?",
       loading: isPt ? "A IA está criando um caos moral..." : "AI is creating moral chaos...",
       next: isPt ? "Próximo Dilema" : "Next Dilemma",
-      error: isPt ? "Falha ao carregar." : "Failed to load."
+      error: isPt ? "Falha ao carregar." : "Failed to load.",
+      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
+      changeKey: isPt ? "Trocar Chave API" : "Change API Key"
   };
 
   const loadScenario = async () => {
     setLoading(true);
     setResult(null);
-    const data = await generateDilemma();
-    if (data) {
-      setScenario(data);
+    setQuotaError(false);
+    try {
+        const data = await generateDilemma();
+        if (data) {
+          setScenario(data);
+        }
+    } catch (e: any) {
+        if (e.name === 'QuotaExceededError') {
+            setQuotaError(true);
+        } else {
+            console.error(e);
+        }
     }
     setLoading(false);
   };
@@ -34,6 +46,26 @@ const DilemmaGame: React.FC = () => {
   const handleChoice = (choice: 'A' | 'B') => {
     setResult(choice);
   };
+
+  const handleChangeKey = () => {
+      removeApiKey();
+      window.location.reload();
+  }
+
+  if (quotaError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-md mx-auto p-8 animate-fade-in text-center">
+             <div className="text-6xl mb-4">🛑</div>
+             <h2 className="text-2xl font-bold text-red-400 mb-2">{t.quotaMsg}</h2>
+             <button 
+                onClick={handleChangeKey}
+                className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-full transition-colors mt-4"
+            >
+                {t.changeKey}
+            </button>
+        </div>
+      )
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-full max-w-4xl mx-auto p-4 animate-fade-in">

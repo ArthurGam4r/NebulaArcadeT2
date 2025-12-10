@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlchemyElement, LoaderState } from '../types';
-import { combineAlchemyElements } from '../services/geminiService';
+import { combineAlchemyElements, removeApiKey, QuotaExceededError } from '../services/geminiService';
 
 const getInitialLanguage = () => {
     if (typeof navigator !== 'undefined') {
@@ -32,6 +32,7 @@ const AlchemyGame: React.FC = () => {
   const [selected, setSelected] = useState<AlchemyElement[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [recentResult, setRecentResult] = useState<AlchemyElement | null>(null);
+  const [quotaError, setQuotaError] = useState(false);
 
   // Localization
   const t = {
@@ -45,7 +46,9 @@ const AlchemyGame: React.FC = () => {
       rediscovery: isPt ? "JÁ DESCOBERTO" : "ALREADY DISCOVERED",
       yourElements: isPt ? "Seus Elementos" : "Your Elements",
       reset: isPt ? "Resetar" : "Reset",
-      resetConfirm: isPt ? "Reiniciar todo o progresso?" : "Reset all progress?"
+      resetConfirm: isPt ? "Reiniciar todo o progresso?" : "Reset all progress?",
+      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
+      changeKey: isPt ? "Trocar Chave API" : "Change API Key"
   };
 
   useEffect(() => {
@@ -65,19 +68,28 @@ const AlchemyGame: React.FC = () => {
     
     setLoading(true);
     setRecentResult(null);
+    setQuotaError(false);
     
-    const newEl = await combineAlchemyElements(selected[0].name, selected[1].name);
-    
-    if (newEl) {
-      // Check for duplicates
-      const exists = elements.find(e => e.name.toLowerCase() === newEl.name.toLowerCase());
-      if (!exists) {
-        setElements(prev => [newEl, ...prev]);
-        setRecentResult(newEl);
-      } else {
-        // We still show the result, but mark it as old
-        setRecentResult({ ...exists, isNew: false });
-      }
+    try {
+        const newEl = await combineAlchemyElements(selected[0].name, selected[1].name);
+        
+        if (newEl) {
+          // Check for duplicates
+          const exists = elements.find(e => e.name.toLowerCase() === newEl.name.toLowerCase());
+          if (!exists) {
+            setElements(prev => [newEl, ...prev]);
+            setRecentResult(newEl);
+          } else {
+            // We still show the result, but mark it as old
+            setRecentResult({ ...exists, isNew: false });
+          }
+        }
+    } catch (e: any) {
+        if (e.name === 'QuotaExceededError') {
+            setQuotaError(true);
+        } else {
+            console.error(e);
+        }
     }
     
     setLoading(false);
@@ -89,6 +101,11 @@ const AlchemyGame: React.FC = () => {
       setElements(INITIAL_ELEMENTS);
       setSelected([]);
     }
+  }
+
+  const handleChangeKey = () => {
+      removeApiKey();
+      window.location.reload();
   }
 
   return (
@@ -107,6 +124,19 @@ const AlchemyGame: React.FC = () => {
             <div className="absolute inset-0 bg-slate-900/80 z-20 flex items-center justify-center flex-col">
                 <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
                 <span className="text-blue-300 animate-pulse">{t.cooking}</span>
+            </div>
+        )}
+
+        {quotaError && (
+             <div className="absolute inset-0 bg-slate-900/95 z-30 flex items-center justify-center flex-col p-6 text-center">
+                <div className="text-4xl mb-2">🛑</div>
+                <h3 className="text-red-400 font-bold text-xl mb-2">{t.quotaMsg}</h3>
+                <button 
+                    onClick={handleChangeKey}
+                    className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-full transition-colors"
+                >
+                    {t.changeKey}
+                </button>
             </div>
         )}
 

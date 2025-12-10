@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LadderChallenge } from '../types';
-import { generateLadderChallenge, validateLadderStep } from '../services/geminiService';
+import { generateLadderChallenge, validateLadderStep, removeApiKey } from '../services/geminiService';
 
 interface Step {
     word: string;
@@ -15,6 +15,7 @@ const LadderGame: React.FC = () => {
     const [validating, setValidating] = useState(false);
     const [feedback, setFeedback] = useState<string | null>(null);
     const [won, setWon] = useState(false);
+    const [quotaError, setQuotaError] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -32,7 +33,9 @@ const LadderGame: React.FC = () => {
         win: isPt ? "Você completou a ponte!" : "You built the bridge!",
         next: isPt ? "Próximo Desafio" : "Next Challenge",
         steps: isPt ? "Passos:" : "Steps:",
-        error: isPt ? "Erro ao conectar" : "Connection failed"
+        error: isPt ? "Erro ao conectar" : "Connection failed",
+        quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
+        changeKey: isPt ? "Trocar Chave API" : "Change API Key"
     };
 
     const loadGame = async () => {
@@ -41,10 +44,19 @@ const LadderGame: React.FC = () => {
         setSteps([]);
         setFeedback(null);
         setInputValue('');
-        const data = await generateLadderChallenge();
-        if (data) {
-            setChallenge(data);
-            setSteps([{ word: data.startWord, emoji: data.startEmoji }]);
+        setQuotaError(false);
+        try {
+            const data = await generateLadderChallenge();
+            if (data) {
+                setChallenge(data);
+                setSteps([{ word: data.startWord, emoji: data.startEmoji }]);
+            }
+        } catch (e: any) {
+            if (e.name === 'QuotaExceededError') {
+                setQuotaError(true);
+            } else {
+                console.error(e);
+            }
         }
         setLoading(false);
     };
@@ -63,6 +75,7 @@ const LadderGame: React.FC = () => {
 
         setValidating(true);
         setFeedback(null);
+        setQuotaError(false);
 
         const currentWord = steps[steps.length - 1].word;
         const guess = inputValue.trim();
@@ -76,17 +89,45 @@ const LadderGame: React.FC = () => {
             return;
         }
 
-        const result = await validateLadderStep(currentWord, challenge.endWord, guess);
+        try {
+            const result = await validateLadderStep(currentWord, challenge.endWord, guess);
 
-        if (result.isValid) {
-            setSteps(prev => [...prev, { word: guess, emoji: result.emoji || '🔗' }]);
-            setInputValue('');
-        } else {
-            setFeedback(result.message);
+            if (result.isValid) {
+                setSteps(prev => [...prev, { word: guess, emoji: result.emoji || '🔗' }]);
+                setInputValue('');
+            } else {
+                setFeedback(result.message);
+            }
+        } catch (e: any) {
+             if (e.name === 'QuotaExceededError') {
+                setQuotaError(true);
+            } else {
+                setFeedback("Error connecting to AI");
+            }
         }
 
         setValidating(false);
     };
+
+    const handleChangeKey = () => {
+      removeApiKey();
+      window.location.reload();
+    }
+
+    if (quotaError) {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-md mx-auto p-8 animate-fade-in text-center">
+               <div className="text-6xl mb-4">🛑</div>
+               <h2 className="text-2xl font-bold text-red-400 mb-2">{t.quotaMsg}</h2>
+               <button 
+                  onClick={handleChangeKey}
+                  className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-full transition-colors mt-4"
+              >
+                  {t.changeKey}
+              </button>
+          </div>
+        )
+    }
 
     return (
         <div className="flex flex-col items-center h-full max-w-2xl mx-auto p-4 animate-fade-in">

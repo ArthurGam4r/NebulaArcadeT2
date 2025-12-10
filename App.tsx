@@ -24,10 +24,9 @@ const App: React.FC = () => {
   };
 
   const handleResetKey = () => {
-      if(confirm(isPt ? 'Isso removerá sua chave API salva e recarregará a página. Continuar?' : 'This will remove your saved API key and reload. Continue?')) {
-          removeApiKey();
-          window.location.reload();
-      }
+      // Direct reset without window.confirm if possible, or simple reload
+      removeApiKey();
+      window.location.reload();
   };
 
   if (!apiKeySet) {
@@ -85,12 +84,18 @@ const App: React.FC = () => {
 
       <footer className="py-6 border-t border-slate-800 text-center text-slate-500 text-xs relative z-10 bg-[#0f172a] flex flex-col gap-2 items-center">
         <p>Powered by Gemini API • {isPt ? 'Criado com React & Tailwind' : 'Built with React & Tailwind'}</p>
-        <button 
-            onClick={handleResetKey}
-            className="text-slate-700 hover:text-red-400 underline cursor-pointer px-4 py-2"
-        >
-            {isPt ? 'Resetar/Trocar Chave API' : 'Reset/Change API Key'}
-        </button>
+        <div className="flex gap-4">
+            <button 
+                onClick={handleResetKey}
+                className="text-slate-700 hover:text-red-400 underline cursor-pointer"
+            >
+                {isPt ? 'Trocar Chave API' : 'Change API Key'}
+            </button>
+            <span className="text-slate-700">|</span>
+             <a href="https://ai.google.dev/pricing" target="_blank" rel="noreferrer" className="text-slate-700 hover:text-blue-400 underline">
+                {isPt ? 'Limites & Preços' : 'Limits & Pricing'}
+            </a>
+        </div>
       </footer>
     </div>
   );

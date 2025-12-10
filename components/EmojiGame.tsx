@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { EmojiChallenge } from '../types';
-import { generateEmojiChallenge } from '../services/geminiService';
+import { generateEmojiChallenge, removeApiKey } from '../services/geminiService';
 
 const EmojiGame: React.FC = () => {
   const [challenge, setChallenge] = useState<EmojiChallenge | null>(null);
   const [guess, setGuess] = useState('');
-  const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'WRONG' | 'REVEAL'>('IDLE');
+  const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'WRONG' | 'REVEAL' | 'QUOTA'>('IDLE');
   
   // Game State - Load history from localStorage
   const [history, setHistory] = useState<string[]>(() => {
@@ -48,7 +48,9 @@ const EmojiGame: React.FC = () => {
       skip: isPt ? "Desistir e Pular (-20 XP)" : "Give up & Skip (-20 XP)",
       error: isPt ? "Erro ao carregar. Tente recarregar." : "Error loading. Try reloading.",
       failTitle: isPt ? "Que pena!" : "Too bad!",
-      resetHistory: isPt ? "Limpar Histórico" : "Clear History"
+      resetHistory: isPt ? "Limpar Histórico" : "Clear History",
+      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
+      changeKey: isPt ? "Trocar Chave API" : "Change API Key"
   };
 
   // Save history whenever it changes
@@ -61,21 +63,31 @@ const EmojiGame: React.FC = () => {
     setHintsRevealedCount(0);
     setGuess('');
     
-    // Tenta obter um desafio. Passa o histórico TODO para exclusão.
-    let data = await generateEmojiChallenge(currentHistory);
-    let attempts = 0;
+    try {
+        // Tenta obter um desafio. Passa o histórico TODO para exclusão.
+        let data = await generateEmojiChallenge(currentHistory);
+        let attempts = 0;
 
-    // Retry logic no cliente se vier repetido (caso a IA ignore o prompt)
-    // Normaliza para comparar sem case sensitivity
-    while (data && currentHistory.some(h => h.toLowerCase() === data?.answer.toLowerCase()) && attempts < 3) {
-        console.log("Duplicate received, retrying...", data.answer);
-        data = await generateEmojiChallenge([...currentHistory, data.answer]);
-        attempts++;
-    }
-    
-    if (data) {
-      setChallenge(data);
-      setStatus('IDLE');
+        // Retry logic no cliente se vier repetido (caso a IA ignore o prompt)
+        while (data && currentHistory.some(h => h.toLowerCase() === data?.answer.toLowerCase()) && attempts < 3) {
+            console.log("Duplicate received, retrying...", data.answer);
+            data = await generateEmojiChallenge([...currentHistory, data.answer]);
+            attempts++;
+        }
+        
+        if (data) {
+          setChallenge(data);
+          setStatus('IDLE');
+        } else {
+             setStatus('IDLE'); // Should handle generic error, but let's stick to IDLE if just null
+        }
+    } catch (e: any) {
+        if (e.name === 'QuotaExceededError') {
+            setStatus('QUOTA');
+        } else {
+            console.error(e);
+            setStatus('IDLE'); // Recover
+        }
     }
   };
 
@@ -165,6 +177,11 @@ const EmojiGame: React.FC = () => {
       window.location.reload();
   }
 
+  const handleChangeKey = () => {
+      removeApiKey();
+      window.location.reload();
+  }
+
   const levelTitle = getLevelTitle(xp);
   
   // Visual calculation for bar width
@@ -178,6 +195,21 @@ const EmojiGame: React.FC = () => {
       if (xp < 800) return 'bg-orange-500';
       return 'bg-purple-500';
   };
+
+  if (status === 'QUOTA') {
+      return (
+        <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto p-8 animate-fade-in text-center">
+             <div className="text-6xl mb-4">🛑</div>
+             <h2 className="text-2xl font-bold text-red-400 mb-2">{t.quotaMsg}</h2>
+             <button 
+                onClick={handleChangeKey}
+                className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-full transition-colors mt-4"
+            >
+                {t.changeKey}
+            </button>
+        </div>
+      )
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto p-4 animate-fade-in">
