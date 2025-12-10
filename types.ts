@@ -39,6 +39,12 @@ export interface LadderValidation {
   isValid: boolean;
   message: string; // Why it is valid or invalid
   emoji?: string; // Emoji for the valid step
+  proximity?: number; // 0 to 100 score of how close/good the word is even if invalid
+}
+
+export interface LadderHint {
+  word: string;
+  reason: string;
 }
 
 export interface LoaderState {

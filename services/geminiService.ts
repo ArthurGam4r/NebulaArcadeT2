@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation } from '../types';
+import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation, LadderHint } from '../types';
 
 // --- API Key Management for Static Hosting ---
 const STORAGE_KEY = 'nebula_api_key';
@@ -306,8 +306,10 @@ export const validateLadderStep = async (current: string, target: string, guess:
         const prompt = `Word Ladder Game.
         Current: "${current}", Target: "${target}", User Guess: "${guess}".
         Lang: ${lang}.
-        Is guess valid semantic step from current?
-        Return JSON: isValid (boolean), message (string), emoji (string).`;
+        1. Is guess a valid semantic step from current? (isValid)
+        2. How close is the guess to bridging the gap to the target? (proximity 0-100).
+           0 = Irrelevant/Wrong direction. 100 = Perfect bridge.
+        Return JSON: isValid, message, emoji, proximity.`;
     
         const operation = () => ai.models.generateContent({
           model,
@@ -320,6 +322,7 @@ export const validateLadderStep = async (current: string, target: string, guess:
                 isValid: { type: Type.BOOLEAN },
                 message: { type: Type.STRING },
                 emoji: { type: Type.STRING },
+                proximity: { type: Type.NUMBER },
               },
               required: ['isValid', 'message']
             }
@@ -333,4 +336,40 @@ export const validateLadderStep = async (current: string, target: string, guess:
         console.error("Ladder Validation Error:", error);
         throw error;
     }
+};
+
+export const getLadderHint = async (current: string, target: string): Promise<LadderHint | null> => {
+  try {
+      const ai = getAI();
+      const model = 'gemini-2.5-flash';
+      const lang = getLanguage();
+      const prompt = `Word Ladder Helper.
+      Current Word: "${current}". Target Word: "${target}".
+      Provide ONE single word that acts as a good next semantic step.
+      Lang: ${lang}.
+      Return JSON: word, reason (short explanation).`;
+  
+      const operation = () => ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              word: { type: Type.STRING },
+              reason: { type: Type.STRING },
+            },
+            required: ['word', 'reason']
+          }
+        }
+      });
+  
+      const response = await retryWithBackoff<GenerateContentResponse>(operation);
+      if (response.text) return JSON.parse(cleanJson(response.text));
+      return null;
+  } catch (error) {
+      console.error("Ladder Hint Error:", error);
+      throw error;
+  }
 };
