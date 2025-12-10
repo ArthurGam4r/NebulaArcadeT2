@@ -3,19 +3,35 @@ import { GameType } from './types';
 import AlchemyGame from './components/AlchemyGame';
 import EmojiGame from './components/EmojiGame';
 import DilemmaGame from './components/DilemmaGame';
-import { hasApiKey, setApiKey } from './services/geminiService';
+import LadderGame from './components/LadderGame';
+import { hasApiKey, setApiKey, removeApiKey } from './services/geminiService';
 
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
-  const [isSetup, setIsSetup] = useState<boolean>(false);
+  const [apiKeySet, setApiKeySet] = useState<boolean>(false);
+  
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
 
   useEffect(() => {
-    setIsSetup(hasApiKey());
+    setApiKeySet(hasApiKey());
   }, []);
 
-  if (!isSetup) {
-      return <SetupScreen onComplete={() => setIsSetup(true)} />;
+  const handleSetKey = (key: string) => {
+    if (key.trim().length > 10) {
+        setApiKey(key);
+        setApiKeySet(true);
+    }
+  };
+
+  const handleResetKey = () => {
+      if(confirm(isPt ? 'Isso removerá sua chave API salva e recarregará a página. Continuar?' : 'This will remove your saved API key and reload. Continue?')) {
+          removeApiKey();
+          window.location.reload();
+      }
+  };
+
+  if (!apiKeySet) {
+      return <SetupScreen onSave={handleSetKey} isPt={isPt} />;
   }
 
   const renderGame = () => {
@@ -26,6 +42,8 @@ const App: React.FC = () => {
         return <EmojiGame />;
       case GameType.DILEMMA:
         return <DilemmaGame />;
+      case GameType.LADDER:
+        return <LadderGame />;
       default:
         return <HomeGrid onSelect={setActiveGame} />;
     }
@@ -65,67 +83,74 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <footer className="py-6 border-t border-slate-800 text-center text-slate-500 text-xs relative z-10 bg-[#0f172a]">
+      <footer className="py-6 border-t border-slate-800 text-center text-slate-500 text-xs relative z-10 bg-[#0f172a] flex flex-col gap-2 items-center">
         <p>Powered by Gemini API • {isPt ? 'Criado com React & Tailwind' : 'Built with React & Tailwind'}</p>
+        <button 
+            onClick={handleResetKey}
+            className="text-slate-700 hover:text-red-400 underline cursor-pointer px-4 py-2"
+        >
+            {isPt ? 'Resetar/Trocar Chave API' : 'Reset/Change API Key'}
+        </button>
       </footer>
     </div>
   );
 };
 
-const SetupScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
-    const [key, setKey] = useState('');
-    const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
+// --- Setup Screen Component ---
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (key.trim().length > 10) {
-            setApiKey(key.trim());
-            onComplete();
-        }
-    };
+const SetupScreen: React.FC<{onSave: (k: string) => void, isPt: boolean}> = ({ onSave, isPt }) => {
+    const [input, setInput] = useState('');
 
     return (
-        <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-4">
-            <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl">
+        <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 font-sans">
+            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-slate-700">
                 <div className="text-center mb-6">
-                     <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mx-auto mb-4">
-                        <span className="text-2xl">🔐</span>
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mb-2">{isPt ? 'Configuração Inicial' : 'Initial Setup'}</h2>
-                    <p className="text-slate-400 text-sm">{isPt ? 'Para jogar, você precisa de uma chave API do Google Gemini.' : 'To play, you need a Google Gemini API Key.'}</p>
-                </div>
-
-                <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-lg mb-6">
-                    <p className="text-yellow-400 text-xs font-bold uppercase tracking-wide mb-1">⚠️ {isPt ? 'Atenção Streamers' : 'Streamer Warning'}</p>
-                    <p className="text-yellow-200/80 text-sm">
-                        {isPt ? 'A chave API dá acesso à sua conta. Cubra a tela ou corte essa parte do vídeo ao inserir a chave.' : 'The API key grants access to your account. Cover the screen or cut this part of the video when entering the key.'}
+                    <div className="text-4xl mb-2">🌌</div>
+                    <h1 className="text-2xl font-bold text-white">Nebula Arcade</h1>
+                    <p className="text-slate-400 text-sm mt-2">
+                        {isPt ? 'Configuração Inicial' : 'Initial Setup'}
                     </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-lg mb-6">
+                    <h3 className="text-yellow-500 font-bold text-sm mb-1 uppercase tracking-wide">
+                        {isPt ? '⚠️ Atenção Streamers' : '⚠️ Streamer Warning'}
+                    </h3>
+                    <p className="text-yellow-200/80 text-xs leading-relaxed">
+                        {isPt 
+                         ? 'Se você estiver gravando, oculte esta tela. Sua chave API dá acesso à sua cota do Google Gemini.' 
+                         : 'If recording, hide this screen. Your API key provides access to your Google Gemini quota.'}
+                    </p>
+                </div>
+
+                <form onSubmit={(e) => { e.preventDefault(); onSave(input); }} className="space-y-4">
                     <div>
-                        <label className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-2 block">Gemini API Key</label>
+                        <label className="block text-slate-400 text-xs uppercase font-bold mb-2">
+                            Gemini API Key
+                        </label>
                         <input 
                             type="password" 
-                            value={key}
-                            onChange={(e) => setKey(e.target.value)}
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
                             placeholder="AIzaSy..."
-                            className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple-500 transition-colors"
+                            className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                         />
                     </div>
+                    
                     <button 
                         type="submit" 
-                        disabled={key.length < 10}
-                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 px-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        disabled={input.length < 10}
+                        className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-3 rounded-lg transition-all"
                     >
-                        {isPt ? 'Salvar e Entrar' : 'Save & Enter'}
+                        {isPt ? 'Salvar e Jogar' : 'Save & Play'}
                     </button>
                 </form>
 
-                <p className="text-center mt-6 text-xs text-slate-600">
-                    {isPt ? 'A chave é salva apenas no seu navegador.' : 'The key is saved locally in your browser.'} <br/>
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline mt-2 inline-block">
-                        {isPt ? 'Obter chave grátis aqui' : 'Get free key here'}
+                <p className="text-center mt-6 text-xs text-slate-500">
+                    {isPt ? 'A chave é salva apenas no seu navegador.' : 'Key is stored locally in your browser.'}
+                    <br/>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline mt-1 inline-block">
+                        {isPt ? 'Obter chave gratuita aqui' : 'Get free key here'}
                     </a>
                 </p>
             </div>
@@ -144,11 +169,13 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
       heroTitle: isPt ? "Explore o Infinito" : "Explore the Infinite",
       heroSub: isPt ? "Mini-games gerados por inteligência artificial. Cada jogada é única." : "AI-generated mini-games. Every playthrough is unique.",
       alchemyTitle: isPt ? "Alquimia Neural" : "Neural Alchemy",
-      alchemyDesc: isPt ? "Combine elementos para criar o universo. O que acontece se você misturar um Gato com um Computador?" : "Combine elements to create the universe. What happens if you mix a Cat with a Computer?",
+      alchemyDesc: isPt ? "Combine elementos para criar o universo." : "Combine elements to create the universe.",
       emojiTitle: isPt ? "Detetive de Emojis" : "Emoji Detective",
-      emojiDesc: isPt ? "A IA transforma filmes e jogos em emojis. Você consegue decifrar o código?" : "AI transforms movies and games into emojis. Can you crack the code?",
+      emojiDesc: isPt ? "Adivinhe o filme baseado nos emojis." : "Guess the movie based on emojis.",
       dilemmaTitle: isPt ? "Dilema Absurdo" : "Absurd Dilemma",
-      dilemmaDesc: isPt ? "Escolhas morais impossíveis e hilárias geradas na hora. Descubra as consequências." : "Impossible and hilarious moral choices generated on the fly. Discover the consequences.",
+      dilemmaDesc: isPt ? "Escolhas morais impossíveis e hilárias." : "Impossible and hilarious moral choices.",
+      ladderTitle: isPt ? "Ponte Semântica" : "Semantic Bridge",
+      ladderDesc: isPt ? "Conecte duas palavras distantes degrau por degrau." : "Connect two distant words step by step.",
       play: isPt ? "Jogar Agora" : "Play Now"
   };
 
@@ -163,7 +190,7 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
             </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <GameCard 
                 title={t.alchemyTitle}
                 description={t.alchemyDesc}
@@ -187,6 +214,14 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
                 color="from-pink-500 to-rose-500"
                 playText={t.play}
                 onClick={() => onSelect(GameType.DILEMMA)}
+            />
+            <GameCard 
+                title={t.ladderTitle}
+                description={t.ladderDesc}
+                icon="🪜"
+                color="from-emerald-500 to-teal-400"
+                playText={t.play}
+                onClick={() => onSelect(GameType.LADDER)}
             />
         </div>
     </div>
@@ -218,11 +253,11 @@ const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, pl
                 {title}
             </h3>
             
-            <p className="text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-400 text-sm leading-relaxed mb-6">
                 {description}
             </p>
 
-            <div className="mt-6 flex items-center text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-white transition-colors">
+            <div className="absolute bottom-6 left-6 flex items-center text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-white transition-colors">
                 {playText} <span className="ml-2">→</span>
             </div>
         </button>

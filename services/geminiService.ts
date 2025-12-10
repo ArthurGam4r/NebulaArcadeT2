@@ -1,32 +1,41 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { AlchemyElement, EmojiChallenge, DilemmaScenario } from '../types';
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation } from '../types';
 
-// Store key in memory/localStorage since we can't write to process.env at runtime in browser
-const getApiKey = (): string | undefined => {
-  if (typeof localStorage !== 'undefined') {
-    return localStorage.getItem('gemini_api_key') || undefined;
-  }
-  // Fallback to build-time env var if available
-  return process.env.API_KEY;
-};
+// --- API Key Management for Static Hosting ---
+const STORAGE_KEY = 'nebula_api_key';
 
 export const hasApiKey = (): boolean => {
-  return !!getApiKey();
+  if (typeof window !== 'undefined') {
+    return !!localStorage.getItem(STORAGE_KEY) || !!process.env.API_KEY;
+  }
+  return !!process.env.API_KEY;
 };
 
 export const setApiKey = (key: string) => {
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('gemini_api_key', key);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY, key);
+  }
+};
+
+export const removeApiKey = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(STORAGE_KEY);
   }
 };
 
 const getAI = () => {
-  const key = getApiKey();
+  let key = process.env.API_KEY;
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) key = stored;
+  }
+  
   if (!key) throw new Error("API Key Missing");
   return new GoogleGenAI({ apiKey: key });
 };
 
-// Helper to clean JSON string if markdown blocks are present
+// --- Helpers ---
+
 const cleanJson = (text: string): string => {
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
@@ -38,28 +47,77 @@ const getLanguage = (): string => {
   return 'Portuguese (Brazil)';
 };
 
+const retryWithBackoff = async <T>(
+  operation: () => Promise<T>,
+  retries: number = 3,
+  initialDelay: number = 2000
+): Promise<T> => {
+  let currentDelay = initialDelay;
+  
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      const isRetryable = 
+        error.status === 429 || 
+        error.status === 503 ||
+        error.message?.includes('429') || 
+        error.message?.toLowerCase().includes('quota') ||
+        error.message?.toLowerCase().includes('limit') ||
+        error.message?.toLowerCase().includes('overloaded');
+
+      if (isRetryable && i < retries - 1) {
+        console.warn(`API Rate limit hit. Retrying in ${currentDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, currentDelay));
+        currentDelay *= 2;
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("Max retries exceeded");
+};
+
+// --- Games ---
+
+// Cache for Alchemy to save tokens
+const ALCHEMY_CACHE_KEY = 'alchemy_recipes_cache';
+const getAlchemyCache = (): Record<string, any> => {
+    if (typeof localStorage === 'undefined') return {};
+    return JSON.parse(localStorage.getItem(ALCHEMY_CACHE_KEY) || '{}');
+}
+const saveToAlchemyCache = (key: string, result: any) => {
+    if (typeof localStorage === 'undefined') return;
+    const cache = getAlchemyCache();
+    cache[key] = result;
+    localStorage.setItem(ALCHEMY_CACHE_KEY, JSON.stringify(cache));
+}
+
 export const combineAlchemyElements = async (elem1: string, elem2: string): Promise<AlchemyElement | null> => {
+  // Check Cache first
+  const cacheKey = [elem1, elem2].sort().join('+').toLowerCase();
+  const cached = getAlchemyCache()[cacheKey];
+  if (cached) {
+      console.log("Alchemy: Loaded from cache to save API quota");
+      return { ...cached, id: Date.now().toString(), isNew: false };
+  }
+
   try {
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    const prompt = `Act as the logic engine for an 'Infinite Craft' style game.
-    Combine these two elements into a new single element: "${elem1}" + "${elem2}".
+    const prompt = `Act as an 'Infinite Craft' game engine.
+    Combine: "${elem1}" + "${elem2}".
     
-    Guidelines:
-    1. Output a SINGLE noun or a standard compound noun (e.g., "Steam", "Mud", "Super Mario", "Black Hole").
-    2. Keep it simple! If A + B = C, and C is a common word, use C. Do not invent overly specific or descriptive names.
-    3. Be grounded! Prioritize real-world objects, nature, science, or very famous pop culture.
-    4. Allow repeats: It is perfectly fine to output a word that is very common.
-    5. Language: ${lang}.
+    Rules:
+    1. Output a SINGLE noun or standard compound (e.g., "Steam", "Mud", "Super Mario").
+    2. Keep it simple and grounded in reality or pop culture.
+    3. Language: ${lang}.
     
-    Return a JSON object with:
-    - name: The new element name.
-    - emoji: A single representative emoji.
-    `;
+    Return JSON: { name: string, emoji: string }`;
 
-    const response = await ai.models.generateContent({
+    const operation = () => ai.models.generateContent({
       model,
       contents: prompt,
       config: {
@@ -75,14 +133,19 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
       }
     });
 
+    const response = await retryWithBackoff<GenerateContentResponse>(operation);
+
     if (response.text) {
       const data = JSON.parse(cleanJson(response.text));
-      return {
+      const result = {
         id: Date.now().toString(),
         name: data.name,
         emoji: data.emoji,
         isNew: true
       };
+      // Save to cache
+      saveToAlchemyCache(cacheKey, { name: data.name, emoji: data.emoji });
+      return result;
     }
     return null;
 
@@ -98,35 +161,21 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    // Lista de exclusão mais agressiva
-    const excludeList = exclude.join(', '); 
-    const excludePrompt = excludeList.length > 0 
-        ? `CRITICAL: The user has ALREADY played these: [${excludeList}]. DO NOT generate any of these again.` 
-        : '';
+    const excludeList = exclude.slice(-20).join(', '); // Only send last 20 to save context
+    const prompt = `Generate a GLOBAL BLOCKBUSTER Movie/Game title.
+    Exclude: [${excludeList}].
+    
+    Rules:
+    1. Use COMMERCIAL NAME in ${lang} (e.g. "Jurassic Park" not "Parque Jurássico", "Avengers" not "Vingadores" if common).
+    2. No subtitles (e.g. "Star Wars", not "Star Wars: Episode IV").
+    3. Output Language: ${lang}.
+    
+    Return JSON: 
+    - answer (string)
+    - emojis (string)
+    - hints (array of 5 strings, easy to hard)`;
 
-    const prompt = `Generate a WORLD FAMOUS, GLOBAL BLOCKBUSTER Movie, Video Game, or Book title.
-    
-    ${excludePrompt}
-    
-    Guidelines:
-    1. Scope: Only choose titles that are extremely recognizable globally (e.g., Marvel, Disney, Star Wars, Harry Potter, Titanic, GTA, Mario). Avoid obscure indie films.
-    2. Naming: 
-       - OUTPUT THE COMMERCIAL NAME USED IN ${lang}.
-       - IF the English title is commonly used in ${lang} (e.g. "Jurassic Park", "Star Wars", "Black Mirror", "Top Gun"), USE THE ENGLISH TITLE.
-       - Do NOT translate titles that are not usually translated (e.g. Do NOT write "Parque Jurássico", write "Jurassic Park").
-       - Only translate if it's the standard (e.g. "The Godfather" -> "O Poderoso Chefão").
-       - REMOVE subtitles (e.g. "Star Wars: Episode IV" -> "Star Wars").
-    3. Output Language for hints/answer: ${lang}.
-    4. Emojis: Use 2 to 5 emojis to represent the plot or characters.
-    5. NO DUPLICATES from the excluded list.
-    
-    Return JSON with keys: 
-    - "answer" (The simplified title in ${lang})
-    - "emojis"
-    - "hints": An array of 5 strings in ${lang} (Progressive difficulty: 1=Vague, 5=Obvious).
-      `;
-
-    const response = await ai.models.generateContent({
+    const operation = () => ai.models.generateContent({
       model,
       contents: prompt,
       config: {
@@ -142,6 +191,8 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
         }
       }
     });
+
+    const response = await retryWithBackoff<GenerateContentResponse>(operation);
 
     if (response.text) {
       return JSON.parse(cleanJson(response.text)) as EmojiChallenge;
@@ -159,12 +210,11 @@ export const generateDilemma = async (): Promise<DilemmaScenario | null> => {
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
-    const prompt = `Create a funny, absurd, or philosophical "Would You Rather" scenario.
-    It should be a difficult or hilarious choice.
-    Return JSON with: title, description, optionA, optionB, consequenceA (short funny prediction), consequenceB (short funny prediction).
-    Language: ${lang}.`;
+    const prompt = `Create a funny "Would You Rather" scenario.
+    Language: ${lang}.
+    Return JSON: title, description, optionA, optionB, consequenceA, consequenceB.`;
 
-    const response = await ai.models.generateContent({
+    const operation = () => ai.models.generateContent({
       model,
       contents: prompt,
       config: {
@@ -184,12 +234,83 @@ export const generateDilemma = async (): Promise<DilemmaScenario | null> => {
       }
     });
 
-    if (response.text) {
-      return JSON.parse(cleanJson(response.text)) as DilemmaScenario;
-    }
+    const response = await retryWithBackoff<GenerateContentResponse>(operation);
+    if (response.text) return JSON.parse(cleanJson(response.text));
     return null;
   } catch (error) {
     console.error("Dilemma Error:", error);
     return null;
   }
+};
+
+export const generateLadderChallenge = async (): Promise<LadderChallenge | null> => {
+  try {
+    const ai = getAI();
+    const model = 'gemini-2.5-flash';
+    const lang = getLanguage();
+    const prompt = `Generate 2 distinct nouns (Start/End) connectable by 5 semantic steps.
+    Language: ${lang}.
+    Return JSON: startWord, endWord, startEmoji, endEmoji.`;
+
+    const operation = () => ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            startWord: { type: Type.STRING },
+            endWord: { type: Type.STRING },
+            startEmoji: { type: Type.STRING },
+            endEmoji: { type: Type.STRING },
+          },
+          required: ['startWord', 'endWord', 'startEmoji', 'endEmoji']
+        }
+      }
+    });
+
+    const response = await retryWithBackoff<GenerateContentResponse>(operation);
+    if (response.text) return JSON.parse(cleanJson(response.text));
+    return null;
+  } catch (error) {
+    console.error("Ladder Error:", error);
+    return null;
+  }
+};
+
+export const validateLadderStep = async (current: string, target: string, guess: string): Promise<LadderValidation> => {
+    try {
+        const ai = getAI();
+        const model = 'gemini-2.5-flash';
+        const lang = getLanguage();
+        const prompt = `Word Ladder Game.
+        Current: "${current}", Target: "${target}", User Guess: "${guess}".
+        Lang: ${lang}.
+        Is guess valid semantic step from current?
+        Return JSON: isValid (boolean), message (string), emoji (string).`;
+    
+        const operation = () => ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                isValid: { type: Type.BOOLEAN },
+                message: { type: Type.STRING },
+                emoji: { type: Type.STRING },
+              },
+              required: ['isValid', 'message']
+            }
+          }
+        });
+    
+        const response = await retryWithBackoff<GenerateContentResponse>(operation);
+        if (response.text) return JSON.parse(cleanJson(response.text));
+        return { isValid: false, message: "Error" };
+    } catch (error) {
+        return { isValid: false, message: "Connection error" };
+    }
 };
