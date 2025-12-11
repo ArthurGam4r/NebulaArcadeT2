@@ -394,13 +394,19 @@ export const generateCipherChallenge = async (exclude: string[] = []): Promise<C
          - Must be VERY famous global culture pop.
          - Examples: "Iron Man", "Super Mario", "Lion King", "Google", "Naruto".
       
-      3. Apply a Medium/Hard creative transformation rule. 
-         - The encrypted text must look messy/confusing.
-         - Examples of rules: 
-           "Reverse words + Vowels are numbers", 
-           "Swap first and last letters + Caesar Cipher (+1)",
-           "Remove all vowels + Reverse string",
-           "Keep only consonants and write backwards".
+      3. Apply a VISUAL or LOGICAL transformation rule (e.g. Leet Speak, Reversal).
+         
+         CRITICAL RULES:
+         - DO NOT use "Caesar Cipher" or "Alphabet Shifting" (e.g. A->B, +1 shift).
+         - DO NOT introduce letters that don't look like the original (e.g. don't swap 'A' for 'X').
+         - The encrypted text MUST contain the original letters or visual lookalikes (numbers).
+         
+         ALLOWED RULES:
+         - "Vowels are numbers" (A=4, E=3, I=1, O=0).
+         - "Reverse the entire string".
+         - "Reverse each word individually".
+         - "Remove all vowels".
+         - "Anagram (Scramble letters but keep first/last fixed)".
       
       Return JSON:
       - original (string): The correct name.
