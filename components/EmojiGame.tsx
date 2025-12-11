@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { EmojiChallenge } from '../types';
-import { generateEmojiChallenge, removeApiKey } from '../services/geminiService';
+import { generateEmojiChallengeBatch, removeApiKey } from '../services/geminiService';
 
 const EmojiGame: React.FC = () => {
   const [challenge, setChallenge] = useState<EmojiChallenge | null>(null);
   const [guess, setGuess] = useState('');
   const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'WRONG' | 'REVEAL' | 'QUOTA'>('IDLE');
   
-  // Game State - Load history from localStorage
+  // Game State - Load history
   const [history, setHistory] = useState<string[]>(() => {
     if (typeof localStorage !== 'undefined') {
         const saved = localStorage.getItem('emoji_history');
@@ -16,15 +16,15 @@ const EmojiGame: React.FC = () => {
     return [];
   });
 
+  // --- QUEUE SYSTEM ---
+  // Stores prefetched challenges to avoid API calls on every next
+  const [queue, setQueue] = useState<EmojiChallenge[]>([]);
+  const queueRef = useRef<EmojiChallenge[]>([]); // Ref to access current queue in async funcs
+
   const [streak, setStreak] = useState(0);
-  
-  // Hints
   const [hintsRevealedCount, setHintsRevealedCount] = useState(0);
-  
-  // Specialist Bar State
   const [xp, setXp] = useState(0);
 
-  // Localization
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
   const t = {
       title: isPt ? "Detetive de Emojis" : "Emoji Detective",
@@ -53,52 +53,70 @@ const EmojiGame: React.FC = () => {
       changeKey: isPt ? "Trocar Chave API" : "Change API Key"
   };
 
-  // Save history whenever it changes
   useEffect(() => {
       localStorage.setItem('emoji_history', JSON.stringify(history));
   }, [history]);
 
-  const fetchChallenge = async (currentHistory: string[] = history) => {
+  // Keep ref synced
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
+
+  const loadNextChallenge = async (currentHistory: string[] = history) => {
     setStatus('LOADING');
     setHintsRevealedCount(0);
     setGuess('');
     
-    try {
-        // Tenta obter um desafio. Passa o histórico TODO para exclusão.
-        let data = await generateEmojiChallenge(currentHistory);
-        let attempts = 0;
+    // 1. Check Queue first
+    if (queueRef.current.length > 0) {
+        console.log("Serving from Cache/Queue. Items left:", queueRef.current.length - 1);
+        const next = queueRef.current[0];
+        setChallenge(next);
+        setQueue(prev => prev.slice(1));
+        setStatus('IDLE');
+        return;
+    }
 
-        // Retry logic no cliente se vier repetido (caso a IA ignore o prompt)
-        while (data && currentHistory.some(h => h.toLowerCase() === data?.answer.toLowerCase()) && attempts < 3) {
-            console.log("Duplicate received, retrying...", data.answer);
-            data = await generateEmojiChallenge([...currentHistory, data.answer]);
-            attempts++;
-        }
+    // 2. Fetch Batch if queue empty
+    console.log("Queue empty. Fetching batch from API...");
+    try {
+        const batch = await generateEmojiChallengeBatch(currentHistory);
         
-        if (data) {
-          setChallenge(data);
-          setStatus('IDLE');
+        if (batch && batch.length > 0) {
+            // Check duplicates against history just in case
+            const validBatch = batch.filter(item => !currentHistory.includes(item.answer));
+            
+            if (validBatch.length > 0) {
+                const first = validBatch[0];
+                const rest = validBatch.slice(1);
+                
+                setChallenge(first);
+                setQueue(rest);
+                setStatus('IDLE');
+            } else {
+                // Rare case: AI returned all duplicates. Retry once.
+                 setStatus('IDLE'); // Simple failover
+            }
         } else {
-             setStatus('IDLE'); // Should handle generic error, but let's stick to IDLE if just null
+             setStatus('IDLE');
         }
     } catch (e: any) {
         if (e.name === 'QuotaExceededError') {
             setStatus('QUOTA');
         } else {
             console.error(e);
-            setStatus('IDLE'); // Recover
+            setStatus('IDLE');
         }
     }
   };
 
-  // Initial load
   useEffect(() => {
-    fetchChallenge(history);
+    loadNextChallenge(history);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
 
   const handleNextLevel = () => {
-      fetchChallenge(history);
+      loadNextChallenge(history);
   }
 
   const adjustXp = (amount: number) => {
@@ -129,18 +147,14 @@ const EmojiGame: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!challenge) return;
-    
-    // Ignora input vazio
     if (!guess.trim()) return;
 
-    // Simple normalization for comparison
     const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
     
     if (normalize(guess).includes(normalize(challenge.answer)) || normalize(challenge.answer).includes(normalize(guess))) {
       setStatus('SUCCESS');
       setStreak(s => s + 1);
       
-      // Update history state
       setHistory(prev => {
           if (!prev.includes(challenge.answer)) {
               return [...prev, challenge.answer];
@@ -159,10 +173,9 @@ const EmojiGame: React.FC = () => {
   const handleSkip = () => {
       if (!challenge) return;
       setStreak(0);
-      adjustXp(-20); // Penalidade por pular
-      setStatus('REVEAL'); // Mostra a resposta
+      adjustXp(-20);
+      setStatus('REVEAL');
       
-      // Adiciona ao histórico mesmo se pulou, pra não aparecer de novo
       setHistory(prev => {
         if (!prev.includes(challenge.answer)) {
             return [...prev, challenge.answer];
@@ -183,11 +196,8 @@ const EmojiGame: React.FC = () => {
   }
 
   const levelTitle = getLevelTitle(xp);
-  
-  // Visual calculation for bar width
   const barPercentage = xp < 0 ? 0 : (xp % 100); 
 
-  // Determine color based on XP
   const getBarColor = () => {
       if (xp < 0) return 'bg-red-600';
       if (xp < 200) return 'bg-slate-500';
@@ -222,7 +232,6 @@ const EmojiGame: React.FC = () => {
             {t.resetHistory}
         </button>
         
-        {/* Specialist Bar */}
         <div className="mt-4 max-w-md mx-auto">
             <div className="flex justify-between text-xs uppercase font-bold tracking-wider mb-1">
                 <span className={xp < 0 ? "text-red-400" : "text-slate-400"}>
@@ -258,7 +267,6 @@ const EmojiGame: React.FC = () => {
               {challenge.emojis}
             </div>
 
-            {/* Active Hints Display */}
             <div className="w-full flex flex-col gap-2">
                 {challenge.hints.slice(0, hintsRevealedCount).map((hint, idx) => (
                     <div key={idx} className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 px-4 py-2 rounded-lg text-sm flex items-start gap-2 animate-fade-in">
@@ -309,7 +317,6 @@ const EmojiGame: React.FC = () => {
                     )}
 
                     <div className="flex flex-col gap-3 mt-2">
-                         {/* Hint Button */}
                         {hintsRevealedCount < 5 && (
                             <button 
                                 type="button" 
@@ -338,7 +345,6 @@ const EmojiGame: React.FC = () => {
                             {t.skip}
                         </button>
                     </div>
-
                  </>
                )}
             </form>

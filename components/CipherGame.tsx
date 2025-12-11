@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CipherChallenge } from '../types';
-import { generateCipherChallenge, removeApiKey } from '../services/geminiService';
+import { generateCipherChallengeBatch, removeApiKey } from '../services/geminiService';
 
 const CipherGame: React.FC = () => {
     const [challenge, setChallenge] = useState<CipherChallenge | null>(null);
@@ -10,7 +10,10 @@ const CipherGame: React.FC = () => {
     const [quotaError, setQuotaError] = useState(false);
     const [showRule, setShowRule] = useState(false);
 
-    // History state
+    // Queue
+    const [queue, setQueue] = useState<CipherChallenge[]>([]);
+    const queueRef = useRef<CipherChallenge[]>([]);
+
     const [history, setHistory] = useState<string[]>(() => {
         if (typeof localStorage !== 'undefined') {
             const saved = localStorage.getItem('cipher_history');
@@ -19,12 +22,14 @@ const CipherGame: React.FC = () => {
         return [];
     });
 
-    // Save history whenever it changes
     useEffect(() => {
         localStorage.setItem('cipher_history', JSON.stringify(history));
     }, [history]);
 
-    // Localization
+    useEffect(() => {
+        queueRef.current = queue;
+    }, [queue]);
+
     const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
     const t = {
         title: isPt ? "Decodificador Críptico" : "Cryptic Decoder",
@@ -53,19 +58,27 @@ const CipherGame: React.FC = () => {
         setQuotaError(false);
         setChallenge(null);
 
+        // 1. Check Queue
+        if (queueRef.current.length > 0) {
+            const next = queueRef.current[0];
+            setChallenge(next);
+            setQueue(prev => prev.slice(1));
+            setLoading(false);
+            return;
+        }
+
         try {
-            let data = await generateCipherChallenge(currentHistory);
-            let attempts = 0;
-
-            // Simple client-side retry for strict anti-duplication if AI misses the prompt
-            while (data && currentHistory.some(h => h.toLowerCase() === data?.original.toLowerCase()) && attempts < 3) {
-                 console.log("Duplicate Cipher detected, retrying...", data.original);
-                 data = await generateCipherChallenge([...currentHistory, data.original]);
-                 attempts++;
-            }
-
-            if (data) {
-                setChallenge(data);
+            const batch = await generateCipherChallengeBatch(currentHistory);
+            
+            if (batch && batch.length > 0) {
+                // Filter dupes locally
+                const validBatch = batch.filter(c => !currentHistory.includes(c.original));
+                if (validBatch.length > 0) {
+                    setChallenge(validBatch[0]);
+                    setQueue(validBatch.slice(1));
+                } else {
+                     // retry logic simplified
+                }
             }
         } catch (e: any) {
              if (e.name === 'QuotaExceededError') {
@@ -170,7 +183,6 @@ const CipherGame: React.FC = () => {
             ) : challenge ? (
                 <div className="w-full bg-black border border-green-500/50 p-6 rounded-sm shadow-[0_0_15px_rgba(34,197,94,0.2)]">
                     
-                    {/* Metadata Header */}
                     <div className="flex justify-between items-center border-b border-green-500/30 pb-4 mb-6">
                         <span className="text-xs text-green-500/50 uppercase tracking-widest">{t.category} <span className="text-green-400">{challenge.category}</span></span>
                         <div className="flex gap-2">
@@ -180,14 +192,12 @@ const CipherGame: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* The Encrypted Text */}
                     <div className="bg-green-900/10 p-6 mb-6 rounded border-l-4 border-green-500">
                         <p className="text-2xl md:text-3xl font-bold text-green-300 font-mono break-words leading-relaxed select-none tracking-widest">
                             {challenge.encrypted}
                         </p>
                     </div>
 
-                    {/* Rule/Hint Toggle */}
                     <div className="mb-6 flex justify-center">
                         {showRule ? (
                             <div className="bg-green-500/10 px-4 py-2 rounded border border-green-500/30 text-green-400 text-sm animate-fade-in">
@@ -204,7 +214,6 @@ const CipherGame: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Input Area */}
                     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                         <div className="relative group">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-500/50 font-bold">{">"}</span>

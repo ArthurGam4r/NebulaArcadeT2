@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DilemmaScenario } from '../types';
-import { generateDilemma, removeApiKey } from '../services/geminiService';
+import { generateDilemmaBatch, removeApiKey } from '../services/geminiService';
 
 const DilemmaGame: React.FC = () => {
   const [scenario, setScenario] = useState<DilemmaScenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<'A' | 'B' | null>(null);
   const [quotaError, setQuotaError] = useState(false);
+
+  // Queue System
+  const [queue, setQueue] = useState<DilemmaScenario[]>([]);
+  const queueRef = useRef<DilemmaScenario[]>([]);
 
   // Localization
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
@@ -20,14 +24,32 @@ const DilemmaGame: React.FC = () => {
       changeKey: isPt ? "Trocar Chave API" : "Change API Key"
   };
 
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
+
   const loadScenario = async () => {
     setLoading(true);
     setResult(null);
     setQuotaError(false);
+    
+    // 1. Check Queue
+    if (queueRef.current.length > 0) {
+        const next = queueRef.current[0];
+        setScenario(next);
+        setQueue(prev => prev.slice(1));
+        setLoading(false);
+        return;
+    }
+
+    // 2. Fetch Batch
     try {
-        const data = await generateDilemma();
-        if (data) {
-          setScenario(data);
+        const batch = await generateDilemmaBatch();
+        if (batch && batch.length > 0) {
+            setScenario(batch[0]);
+            setQueue(batch.slice(1));
+        } else {
+             // Retry? Just generic error for now
         }
     } catch (e: any) {
         if (e.name === 'QuotaExceededError') {

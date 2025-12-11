@@ -42,9 +42,9 @@ const cleanJson = (text: string): string => {
 
 const getLanguage = (): string => {
   if (typeof navigator !== 'undefined') {
-    return navigator.language.startsWith('pt') ? 'Portuguese (Brazil)' : 'English';
+    return navigator.language.startsWith('pt') ? 'pt-BR' : 'en-US';
   }
-  return 'Portuguese (Brazil)';
+  return 'pt-BR';
 };
 
 // Custom Error for Quota
@@ -66,7 +66,6 @@ const retryWithBackoff = async <T>(
     try {
       return await operation();
     } catch (error: any) {
-      // Check for hard quota limits (Resource Exhausted) - DO NOT RETRY
       const errorMessage = error.message?.toLowerCase() || '';
       const status = error.status || error.response?.status;
       
@@ -78,7 +77,6 @@ const retryWithBackoff = async <T>(
         throw new QuotaExceededError();
       }
 
-      // Check for retryable rate limits
       const isRetryable = 
         status === 429 || 
         status === 503 ||
@@ -99,7 +97,7 @@ const retryWithBackoff = async <T>(
 
 // --- Games ---
 
-// Cache for Alchemy to save tokens
+// Cache for Alchemy
 const ALCHEMY_CACHE_KEY = 'alchemy_recipes_cache';
 const getAlchemyCache = (): Record<string, any> => {
     if (typeof localStorage === 'undefined') return {};
@@ -113,11 +111,10 @@ const saveToAlchemyCache = (key: string, result: any) => {
 }
 
 export const combineAlchemyElements = async (elem1: string, elem2: string): Promise<AlchemyElement | null> => {
-  // Check Cache first
   const cacheKey = [elem1, elem2].sort().join('+').toLowerCase();
   const cached = getAlchemyCache()[cacheKey];
   if (cached) {
-      console.log("Alchemy: Loaded from cache to save API quota");
+      console.log("Alchemy: Cached");
       return { ...cached, id: Date.now().toString(), isNew: false };
   }
 
@@ -126,15 +123,12 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    const prompt = `Act as an 'Infinite Craft' game engine.
+    // Optimized prompt: Short, direct, clear constraints.
+    const prompt = `Infinite Craft Logic.
     Combine: "${elem1}" + "${elem2}".
-    
-    Rules:
-    1. Output a SINGLE noun or standard compound (e.g., "Steam", "Mud", "Super Mario").
-    2. Keep it simple and grounded in reality or pop culture.
-    3. Language: ${lang}.
-    
-    Return JSON: { name: string, emoji: string }`;
+    Lang: ${lang}.
+    Output: Single noun/compound (Real/PopCulture).
+    JSON: { name, emoji }`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -162,7 +156,6 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
         emoji: data.emoji,
         isNew: true
       };
-      // Save to cache
       saveToAlchemyCache(cacheKey, { name: data.name, emoji: data.emoji });
       return result;
     }
@@ -174,25 +167,21 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
   }
 };
 
-export const generateEmojiChallenge = async (exclude: string[] = []): Promise<EmojiChallenge | null> => {
+// Optimized to fetch BATCH of 3 items
+export const generateEmojiChallengeBatch = async (exclude: string[] = []): Promise<EmojiChallenge[]> => {
   try {
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    const excludeList = exclude.slice(-50).join(', '); // Send last 50
-    const prompt = `Generate a GLOBAL BLOCKBUSTER Movie/Game title.
+    // Only send last 20 history items to save tokens
+    const excludeList = exclude.slice(-20).join(', '); 
+    
+    const prompt = `List 3 distinct Global Blockbuster (Movie/Game).
     Exclude: [${excludeList}].
-    
-    Rules:
-    1. Use COMMERCIAL NAME in ${lang} (e.g. "Jurassic Park" not "Parque Jurássico", "Avengers" not "Vingadores" if common).
-    2. No subtitles (e.g. "Star Wars", not "Star Wars: Episode IV").
-    3. Output Language: ${lang}.
-    
-    Return JSON: 
-    - answer (string)
-    - emojis (string)
-    - hints (array of 5 strings, easy to hard)`;
+    Lang: ${lang}.
+    Rules: Commercial names only (e.g. "Star Wars", not "Episode IV").
+    JSON Array of objects: { answer, emojis, hints[5] (hard to easy) }`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -200,13 +189,16 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            answer: { type: Type.STRING },
-            emojis: { type: Type.STRING },
-            hints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['answer', 'emojis', 'hints']
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+                answer: { type: Type.STRING },
+                emojis: { type: Type.STRING },
+                hints: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ['answer', 'emojis', 'hints']
+          }
         }
       }
     });
@@ -214,9 +206,9 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
     const response = await retryWithBackoff<GenerateContentResponse>(operation);
 
     if (response.text) {
-      return JSON.parse(cleanJson(response.text)) as EmojiChallenge;
+      return JSON.parse(cleanJson(response.text)) as EmojiChallenge[];
     }
-    return null;
+    return [];
 
   } catch (error) {
     console.error("Emoji Error:", error);
@@ -224,14 +216,16 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
   }
 };
 
-export const generateDilemma = async (): Promise<DilemmaScenario | null> => {
+// Optimized to fetch BATCH of 3 items
+export const generateDilemmaBatch = async (): Promise<DilemmaScenario[]> => {
   try {
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
-    const prompt = `Create a funny "Would You Rather" scenario.
-    Language: ${lang}.
-    Return JSON: title, description, optionA, optionB, consequenceA, consequenceB.`;
+    
+    const prompt = `Create 3 funny "Would You Rather" scenarios.
+    Lang: ${lang}.
+    JSON Array: { title, description, optionA, optionB, consequenceA, consequenceB }`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -239,23 +233,26 @@ export const generateDilemma = async (): Promise<DilemmaScenario | null> => {
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            description: { type: Type.STRING },
-            optionA: { type: Type.STRING },
-            optionB: { type: Type.STRING },
-            consequenceA: { type: Type.STRING },
-            consequenceB: { type: Type.STRING },
-          },
-          required: ['title', 'description', 'optionA', 'optionB', 'consequenceA', 'consequenceB']
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    optionA: { type: Type.STRING },
+                    optionB: { type: Type.STRING },
+                    consequenceA: { type: Type.STRING },
+                    consequenceB: { type: Type.STRING },
+                },
+                required: ['title', 'description', 'optionA', 'optionB', 'consequenceA', 'consequenceB']
+            }
         }
       }
     });
 
     const response = await retryWithBackoff<GenerateContentResponse>(operation);
     if (response.text) return JSON.parse(cleanJson(response.text));
-    return null;
+    return [];
   } catch (error) {
     console.error("Dilemma Error:", error);
     throw error;
@@ -267,9 +264,10 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
-    const prompt = `Generate 2 distinct nouns (Start/End) connectable by 5 semantic steps.
-    Language: ${lang}.
-    Return JSON: startWord, endWord, startEmoji, endEmoji.`;
+    // Short prompt
+    const prompt = `Gen 2 distinct nouns (Start/End) for Word Ladder (5 semantic steps).
+    Lang: ${lang}.
+    JSON: { startWord, endWord, startEmoji, endEmoji }`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -303,13 +301,13 @@ export const validateLadderStep = async (current: string, target: string, guess:
         const ai = getAI();
         const model = 'gemini-2.5-flash';
         const lang = getLanguage();
-        const prompt = `Word Ladder Game.
-        Current: "${current}", Target: "${target}", User Guess: "${guess}".
+        // Optimized Prompt
+        const prompt = `Word Ladder Validator.
+        Link: "${current}" -> "${guess}" -> ... -> "${target}"?
         Lang: ${lang}.
-        1. Is guess a valid semantic step from current? (isValid)
-        2. How close is the guess to bridging the gap to the target? (proximity 0-100).
-           0 = Irrelevant/Wrong direction. 100 = Perfect bridge.
-        Return JSON: isValid, message, emoji, proximity.`;
+        1. isValid step? (true/false)
+        2. proximity (0-100) to target.
+        JSON: { isValid, message, emoji, proximity }`;
     
         const operation = () => ai.models.generateContent({
           model,
@@ -343,11 +341,11 @@ export const getLadderHint = async (current: string, target: string): Promise<La
       const ai = getAI();
       const model = 'gemini-2.5-flash';
       const lang = getLanguage();
-      const prompt = `Word Ladder Helper.
-      Current Word: "${current}". Target Word: "${target}".
-      Provide ONE single word that acts as a good next semantic step.
+      const prompt = `Word Ladder Hint.
+      From "${current}" towards "${target}".
+      Output ONE bridge word.
       Lang: ${lang}.
-      Return JSON: word, reason (short explanation).`;
+      JSON: { word, reason }`;
   
       const operation = () => ai.models.generateContent({
         model,
@@ -374,45 +372,24 @@ export const getLadderHint = async (current: string, target: string): Promise<La
   }
 };
 
-export const generateCipherChallenge = async (exclude: string[] = []): Promise<CipherChallenge | null> => {
+// Optimized to fetch BATCH of 3 items
+export const generateCipherChallengeBatch = async (exclude: string[] = []): Promise<CipherChallenge[]> => {
   try {
       const ai = getAI();
       const model = 'gemini-2.5-flash';
       const lang = getLanguage();
-      
-      const excludeList = exclude.slice(-50).join(', '); // Exclude last 50 items
+      const excludeList = exclude.slice(-20).join(', ');
 
-      const prompt = `Generate a Text Cipher Game.
-      Language: ${lang}.
-      Exclude these answers: [${excludeList}].
+      const prompt = `Generate 3 Cipher Games.
+      Lang: ${lang}.
+      Exclude: [${excludeList}].
       
-      1. RANDOMLY select a category from: 
-         [Blockbuster Movies, Popular Video Games, Cartoons/Anime, Superheroes, Famous Technology Brands].
-         IMPORTANT: Translate the category name to ${lang} in the output.
+      Per item:
+      1. Category: Movies, Games, Anime, Heroes, Tech (Translate name).
+      2. Answer: Short famous name (1-3 words).
+      3. Rule: VISUAL/LOGIC only (Leet, Reverse, Anagram). NO Caesar/Math shifts.
       
-      2. Choose a **SHORT** name or phrase (Max 1-3 words).
-         - Must be VERY famous global culture pop.
-         - Examples: "Iron Man", "Super Mario", "Lion King", "Google", "Naruto".
-      
-      3. Apply a VISUAL or LOGICAL transformation rule (e.g. Leet Speak, Reversal).
-         
-         CRITICAL RULES:
-         - DO NOT use "Caesar Cipher" or "Alphabet Shifting" (e.g. A->B, +1 shift).
-         - DO NOT introduce letters that don't look like the original (e.g. don't swap 'A' for 'X').
-         - The encrypted text MUST contain the original letters or visual lookalikes (numbers).
-         
-         ALLOWED RULES:
-         - "Vowels are numbers" (A=4, E=3, I=1, O=0).
-         - "Reverse the entire string".
-         - "Reverse each word individually".
-         - "Remove all vowels".
-         - "Anagram (Scramble letters but keep first/last fixed)".
-      
-      Return JSON:
-      - original (string): The correct name.
-      - encrypted (string): The name with rule applied (make it look cryptic!).
-      - rule (string): Name of the rule used (translated to ${lang}).
-      - category (string): The category chosen (translated to ${lang}).`;
+      JSON Array: { original, encrypted, rule, category }`;
 
       const operation = () => ai.models.generateContent({
         model,
@@ -420,21 +397,24 @@ export const generateCipherChallenge = async (exclude: string[] = []): Promise<C
         config: {
             responseMimeType: 'application/json',
             responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                original: { type: Type.STRING },
-                encrypted: { type: Type.STRING },
-                rule: { type: Type.STRING },
-                category: { type: Type.STRING },
-              },
-              required: ['original', 'encrypted', 'rule', 'category']
+              type: Type.ARRAY,
+              items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    original: { type: Type.STRING },
+                    encrypted: { type: Type.STRING },
+                    rule: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                  },
+                  required: ['original', 'encrypted', 'rule', 'category']
+              }
             }
           }
       });
 
       const response = await retryWithBackoff<GenerateContentResponse>(operation);
       if (response.text) return JSON.parse(cleanJson(response.text));
-      return null;
+      return [];
   } catch (error) {
       console.error("Cipher Error:", error);
       throw error;
