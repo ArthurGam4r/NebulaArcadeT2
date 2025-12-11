@@ -10,6 +10,20 @@ const CipherGame: React.FC = () => {
     const [quotaError, setQuotaError] = useState(false);
     const [showRule, setShowRule] = useState(false);
 
+    // History state
+    const [history, setHistory] = useState<string[]>(() => {
+        if (typeof localStorage !== 'undefined') {
+            const saved = localStorage.getItem('cipher_history');
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
+
+    // Save history whenever it changes
+    useEffect(() => {
+        localStorage.setItem('cipher_history', JSON.stringify(history));
+    }, [history]);
+
     // Localization
     const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
     const t = {
@@ -27,10 +41,11 @@ const CipherGame: React.FC = () => {
         giveUp: isPt ? "Desistir" : "Give Up",
         was: isPt ? "A frase era:" : "The phrase was:",
         quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
-        changeKey: isPt ? "Trocar Chave API" : "Change API Key"
+        changeKey: isPt ? "Trocar Chave API" : "Change API Key",
+        resetHistory: isPt ? "Limpar Histórico" : "Clear History"
     };
 
-    const loadGame = async () => {
+    const loadGame = async (currentHistory: string[] = history) => {
         setLoading(true);
         setStatus('IDLE');
         setInputValue('');
@@ -39,7 +54,16 @@ const CipherGame: React.FC = () => {
         setChallenge(null);
 
         try {
-            const data = await generateCipherChallenge();
+            let data = await generateCipherChallenge(currentHistory);
+            let attempts = 0;
+
+            // Simple client-side retry for strict anti-duplication if AI misses the prompt
+            while (data && currentHistory.some(h => h.toLowerCase() === data?.original.toLowerCase()) && attempts < 3) {
+                 console.log("Duplicate Cipher detected, retrying...", data.original);
+                 data = await generateCipherChallenge([...currentHistory, data.original]);
+                 attempts++;
+            }
+
             if (data) {
                 setChallenge(data);
             }
@@ -54,10 +78,20 @@ const CipherGame: React.FC = () => {
     };
 
     useEffect(() => {
-        loadGame();
+        loadGame(history);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const addToHistory = (item: string) => {
+        setHistory(prev => {
+            if (!prev.includes(item)) {
+                return [...prev, item];
+            }
+            return prev;
+        });
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -68,6 +102,7 @@ const CipherGame: React.FC = () => {
 
         if (guess === answer) {
             setStatus('SUCCESS');
+            addToHistory(challenge.original);
         } else {
             setStatus('FAIL');
         }
@@ -77,10 +112,21 @@ const CipherGame: React.FC = () => {
         if (!challenge) return;
         setInputValue(challenge.original);
         setStatus('FAIL');
+        addToHistory(challenge.original);
     }
 
     const handleChangeKey = () => {
         removeApiKey();
+        window.location.reload();
+    }
+
+    const handleNext = () => {
+        loadGame(history);
+    }
+
+    const clearHistory = () => {
+        setHistory([]);
+        localStorage.removeItem('cipher_history');
         window.location.reload();
     }
 
@@ -100,7 +146,12 @@ const CipherGame: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col items-center h-full max-w-3xl mx-auto p-6 animate-fade-in font-mono">
+        <div className="flex flex-col items-center h-full max-w-3xl mx-auto p-6 animate-fade-in font-mono relative">
+            
+            <button onClick={clearHistory} className="absolute top-2 right-4 text-[10px] text-green-500/50 hover:text-green-400 uppercase tracking-widest">
+                {t.resetHistory}
+            </button>
+
             <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold text-green-500 tracking-wider uppercase border-b border-green-500/30 pb-2 inline-block">
                     {t.title}
@@ -131,7 +182,7 @@ const CipherGame: React.FC = () => {
 
                     {/* The Encrypted Text */}
                     <div className="bg-green-900/10 p-6 mb-6 rounded border-l-4 border-green-500">
-                        <p className="text-2xl md:text-3xl font-bold text-green-300 font-mono break-words leading-relaxed select-none">
+                        <p className="text-2xl md:text-3xl font-bold text-green-300 font-mono break-words leading-relaxed select-none tracking-widest">
                             {challenge.encrypted}
                         </p>
                     </div>
@@ -187,7 +238,7 @@ const CipherGame: React.FC = () => {
                              {status === 'SUCCESS' ? (
                                 <button 
                                     type="button"
-                                    onClick={loadGame}
+                                    onClick={handleNext}
                                     className="bg-green-600 hover:bg-green-500 text-black font-bold py-3 px-8 rounded shadow-lg transition-transform hover:scale-105"
                                 >
                                     {t.next}

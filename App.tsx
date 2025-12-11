@@ -229,7 +229,7 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
                 title={t.ladderTitle}
                 description={t.ladderDesc}
                 icon="🪜"
-                color="from-emerald-500 to-teal-400"
+                color="from-amber-700 to-orange-800"
                 playText={t.play}
                 onClick={() => onSelect(GameType.LADDER)}
             />
@@ -237,7 +237,7 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
                 title={t.cipherTitle}
                 description={t.cipherDesc}
                 icon="📟"
-                color="from-green-500 to-lime-400"
+                color="from-green-600 to-emerald-600"
                 playText={t.play}
                 onClick={() => onSelect(GameType.CIPHER)}
             />

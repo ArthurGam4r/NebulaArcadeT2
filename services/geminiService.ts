@@ -180,7 +180,7 @@ export const generateEmojiChallenge = async (exclude: string[] = []): Promise<Em
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    const excludeList = exclude.slice(-20).join(', '); // Only send last 20 to save context
+    const excludeList = exclude.slice(-50).join(', '); // Send last 50
     const prompt = `Generate a GLOBAL BLOCKBUSTER Movie/Game title.
     Exclude: [${excludeList}].
     
@@ -374,35 +374,39 @@ export const getLadderHint = async (current: string, target: string): Promise<La
   }
 };
 
-export const generateCipherChallenge = async (): Promise<CipherChallenge | null> => {
+export const generateCipherChallenge = async (exclude: string[] = []): Promise<CipherChallenge | null> => {
   try {
       const ai = getAI();
       const model = 'gemini-2.5-flash';
       const lang = getLanguage();
       
+      const excludeList = exclude.slice(-50).join(', '); // Exclude last 50 items
+
       const prompt = `Generate a Text Cipher Game.
       Language: ${lang}.
+      Exclude these answers: [${excludeList}].
       
-      1. RANDOMLY select a category from this list: 
+      1. RANDOMLY select a category from: 
          [Blockbuster Movies, Popular Video Games, Cartoons/Anime, Superheroes, Famous Technology Brands].
+         IMPORTANT: Translate the category name to ${lang} in the output.
       
-      2. Choose a **SHORT** name or phrase (Max 1-4 words).
-         - Must be VERY famous culture pop.
-         - Examples: "Iron Man", "Super Mario", "Lion King", "PlayStation", "Naruto".
-         - NO long quotes.
+      2. Choose a **SHORT** name or phrase (Max 1-3 words).
+         - Must be VERY famous global culture pop.
+         - Examples: "Iron Man", "Super Mario", "Lion King", "Google", "Naruto".
       
-      3. Apply a creative transformation rule. Examples:
-         - "Replace vowels with numbers (A=4, E=3, etc)"
-         - "Reverse each word"
-         - "Remove all vowels"
-         - "Swap first/last letter"
-         - "Cipher shift +1"
+      3. Apply a Medium/Hard creative transformation rule. 
+         - The encrypted text must look messy/confusing.
+         - Examples of rules: 
+           "Reverse words + Vowels are numbers", 
+           "Swap first and last letters + Caesar Cipher (+1)",
+           "Remove all vowels + Reverse string",
+           "Keep only consonants and write backwards".
       
       Return JSON:
       - original (string): The correct name.
-      - encrypted (string): The name with rule applied.
-      - rule (string): Name of the rule used.
-      - category (string): The category chosen.`;
+      - encrypted (string): The name with rule applied (make it look cryptic!).
+      - rule (string): Name of the rule used (translated to ${lang}).
+      - category (string): The category chosen (translated to ${lang}).`;
 
       const operation = () => ai.models.generateContent({
         model,
