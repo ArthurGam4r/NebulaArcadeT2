@@ -3,7 +3,8 @@ export enum GameType {
   ALCHEMY = 'ALCHEMY',
   EMOJI = 'EMOJI',
   DILEMMA = 'DILEMMA',
-  LADDER = 'LADDER'
+  LADDER = 'LADDER',
+  CIPHER = 'CIPHER'
 }
 
 export interface AlchemyElement {
@@ -45,6 +46,13 @@ export interface LadderValidation {
 export interface LadderHint {
   word: string;
   reason: string;
+}
+
+export interface CipherChallenge {
+  original: string;
+  encrypted: string;
+  rule: string; // e.g., "Vowels are numbers", "Reverse words"
+  category: string; // e.g., "Proverb", "Movie Quote"
 }
 
 export interface LoaderState {

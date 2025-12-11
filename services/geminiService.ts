@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation, LadderHint } from '../types';
+import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation, LadderHint, CipherChallenge } from '../types';
 
 // --- API Key Management for Static Hosting ---
 const STORAGE_KEY = 'nebula_api_key';
@@ -373,3 +373,60 @@ export const getLadderHint = async (current: string, target: string): Promise<La
       throw error;
   }
 };
+
+export const generateCipherChallenge = async (): Promise<CipherChallenge | null> => {
+  try {
+      const ai = getAI();
+      const model = 'gemini-2.5-flash';
+      const lang = getLanguage();
+      
+      const prompt = `Generate a Text Cipher Game.
+      Language: ${lang}.
+      
+      1. RANDOMLY select a category from this list: 
+         [Blockbuster Movies, Popular Video Games, Cartoons/Anime, Superheroes, Famous Technology Brands].
+      
+      2. Choose a **SHORT** name or phrase (Max 1-4 words).
+         - Must be VERY famous culture pop.
+         - Examples: "Iron Man", "Super Mario", "Lion King", "PlayStation", "Naruto".
+         - NO long quotes.
+      
+      3. Apply a creative transformation rule. Examples:
+         - "Replace vowels with numbers (A=4, E=3, etc)"
+         - "Reverse each word"
+         - "Remove all vowels"
+         - "Swap first/last letter"
+         - "Cipher shift +1"
+      
+      Return JSON:
+      - original (string): The correct name.
+      - encrypted (string): The name with rule applied.
+      - rule (string): Name of the rule used.
+      - category (string): The category chosen.`;
+
+      const operation = () => ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                original: { type: Type.STRING },
+                encrypted: { type: Type.STRING },
+                rule: { type: Type.STRING },
+                category: { type: Type.STRING },
+              },
+              required: ['original', 'encrypted', 'rule', 'category']
+            }
+          }
+      });
+
+      const response = await retryWithBackoff<GenerateContentResponse>(operation);
+      if (response.text) return JSON.parse(cleanJson(response.text));
+      return null;
+  } catch (error) {
+      console.error("Cipher Error:", error);
+      throw error;
+  }
+}

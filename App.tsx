@@ -4,6 +4,7 @@ import AlchemyGame from './components/AlchemyGame';
 import EmojiGame from './components/EmojiGame';
 import DilemmaGame from './components/DilemmaGame';
 import LadderGame from './components/LadderGame';
+import CipherGame from './components/CipherGame';
 import { hasApiKey, setApiKey, removeApiKey } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -43,6 +44,8 @@ const App: React.FC = () => {
         return <DilemmaGame />;
       case GameType.LADDER:
         return <LadderGame />;
+      case GameType.CIPHER:
+        return <CipherGame />;
       default:
         return <HomeGrid onSelect={setActiveGame} />;
     }
@@ -181,6 +184,8 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
       dilemmaDesc: isPt ? "Escolhas morais impossíveis e hilárias." : "Impossible and hilarious moral choices.",
       ladderTitle: isPt ? "Ponte Semântica" : "Semantic Bridge",
       ladderDesc: isPt ? "Conecte duas palavras distantes degrau por degrau." : "Connect two distant words step by step.",
+      cipherTitle: isPt ? "Decodificador" : "Cipher Decoder",
+      cipherDesc: isPt ? "Descifre frases famosas bagunçadas pela IA." : "Decipher famous quotes messed up by AI.",
       play: isPt ? "Jogar Agora" : "Play Now"
   };
 
@@ -195,7 +200,7 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
             </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 justify-center">
             <GameCard 
                 title={t.alchemyTitle}
                 description={t.alchemyDesc}
@@ -228,6 +233,14 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
                 playText={t.play}
                 onClick={() => onSelect(GameType.LADDER)}
             />
+            <GameCard 
+                title={t.cipherTitle}
+                description={t.cipherDesc}
+                icon="📟"
+                color="from-green-500 to-lime-400"
+                playText={t.play}
+                onClick={() => onSelect(GameType.CIPHER)}
+            />
         </div>
     </div>
   );
@@ -246,7 +259,7 @@ const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, pl
     return (
         <button 
             onClick={onClick}
-            className="group relative bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-2xl p-6 text-left transition-all hover:shadow-2xl hover:-translate-y-1 overflow-hidden"
+            className="group relative bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-2xl p-6 text-left transition-all hover:shadow-2xl hover:-translate-y-1 overflow-hidden h-full flex flex-col"
         >
             <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-10 blur-2xl rounded-full transform translate-x-10 -translate-y-10 group-hover:opacity-20 transition-opacity`}></div>
             
@@ -258,11 +271,11 @@ const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, pl
                 {title}
             </h3>
             
-            <p className="text-slate-400 text-sm leading-relaxed mb-6">
+            <p className="text-slate-400 text-sm leading-relaxed mb-6 flex-1">
                 {description}
             </p>
 
-            <div className="absolute bottom-6 left-6 flex items-center text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-white transition-colors">
+            <div className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-white transition-colors mt-auto">
                 {playText} <span className="ml-2">→</span>
             </div>
         </button>
