@@ -95,26 +95,36 @@ const retryWithBackoff = async <T>(
   throw new Error("Max retries exceeded");
 };
 
-// --- Games ---
+// --- Local Storage Caches ---
 
-// Cache for Alchemy
-const ALCHEMY_CACHE_KEY = 'alchemy_recipes_cache';
-const getAlchemyCache = (): Record<string, any> => {
+const ALCHEMY_CACHE_KEY = 'alchemy_v2_cache';
+const LADDER_CACHE_KEY = 'ladder_val_cache';
+
+const getCache = (key: string): Record<string, any> => {
     if (typeof localStorage === 'undefined') return {};
-    return JSON.parse(localStorage.getItem(ALCHEMY_CACHE_KEY) || '{}');
+    try {
+        return JSON.parse(localStorage.getItem(key) || '{}');
+    } catch { return {}; }
 }
-const saveToAlchemyCache = (key: string, result: any) => {
+
+const saveCache = (key: string, id: string, data: any) => {
     if (typeof localStorage === 'undefined') return;
-    const cache = getAlchemyCache();
-    cache[key] = result;
-    localStorage.setItem(ALCHEMY_CACHE_KEY, JSON.stringify(cache));
+    const cache = getCache(key);
+    cache[id] = data;
+    // Limit cache size to avoid localStorage limits
+    const keys = Object.keys(cache);
+    if (keys.length > 500) delete cache[keys[0]]; 
+    localStorage.setItem(key, JSON.stringify(cache));
 }
+
+// --- Games ---
 
 export const combineAlchemyElements = async (elem1: string, elem2: string): Promise<AlchemyElement | null> => {
   const cacheKey = [elem1, elem2].sort().join('+').toLowerCase();
-  const cached = getAlchemyCache()[cacheKey];
+  const cached = getCache(ALCHEMY_CACHE_KEY)[cacheKey];
+  
   if (cached) {
-      console.log("Alchemy: Cached");
+      console.log("Alchemy: Cached Hit");
       return { ...cached, id: Date.now().toString(), isNew: false };
   }
 
@@ -123,12 +133,8 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    // Optimized prompt: Short, direct, clear constraints.
-    const prompt = `Infinite Craft Logic.
-    Combine: "${elem1}" + "${elem2}".
-    Lang: ${lang}.
-    Output: Single noun/compound (Real/PopCulture).
-    JSON: { name, emoji }`;
+    // Hyper-compressed prompt
+    const prompt = `InfiniteCraft. Combine "${elem1}"+"${elem2}". Lang:${lang}. Out:1 noun(Real/PopCulture). JSON:{name,emoji}`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -156,7 +162,7 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
         emoji: data.emoji,
         isNew: true
       };
-      saveToAlchemyCache(cacheKey, { name: data.name, emoji: data.emoji });
+      saveCache(ALCHEMY_CACHE_KEY, cacheKey, { name: data.name, emoji: data.emoji });
       return result;
     }
     return null;
@@ -167,21 +173,17 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
   }
 };
 
-// Optimized to fetch BATCH of 3 items
+// Batch increased to 5
 export const generateEmojiChallengeBatch = async (exclude: string[] = []): Promise<EmojiChallenge[]> => {
   try {
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    // Only send last 20 history items to save tokens
-    const excludeList = exclude.slice(-20).join(', '); 
+    // Limit exclusion to last 15 to save input tokens
+    const excludeList = exclude.slice(-15).join(','); 
     
-    const prompt = `List 3 distinct Global Blockbuster (Movie/Game).
-    Exclude: [${excludeList}].
-    Lang: ${lang}.
-    Rules: Commercial names only (e.g. "Star Wars", not "Episode IV").
-    JSON Array of objects: { answer, emojis, hints[5] (hard to easy) }`;
+    const prompt = `List 5 distinct Blockbusters(Movie/Game). No:[${excludeList}]. Lang:${lang}. JSON Array:{answer,emojis,hints[5](hard->easy)}`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -216,16 +218,14 @@ export const generateEmojiChallengeBatch = async (exclude: string[] = []): Promi
   }
 };
 
-// Optimized to fetch BATCH of 3 items
+// Batch increased to 5
 export const generateDilemmaBatch = async (): Promise<DilemmaScenario[]> => {
   try {
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
     
-    const prompt = `Create 3 funny "Would You Rather" scenarios.
-    Lang: ${lang}.
-    JSON Array: { title, description, optionA, optionB, consequenceA, consequenceB }`;
+    const prompt = `5 funny "Would You Rather". Lang:${lang}. JSON Array:{title,description,optionA,optionB,consequenceA,consequenceB}`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -264,10 +264,8 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
     const ai = getAI();
     const model = 'gemini-2.5-flash';
     const lang = getLanguage();
-    // Short prompt
-    const prompt = `Gen 2 distinct nouns (Start/End) for Word Ladder (5 semantic steps).
-    Lang: ${lang}.
-    JSON: { startWord, endWord, startEmoji, endEmoji }`;
+    // Compressed prompt
+    const prompt = `2 nouns(Start/End) for WordLadder(5 steps). Lang:${lang}. JSON:{startWord,endWord,startEmoji,endEmoji}`;
 
     const operation = () => ai.models.generateContent({
       model,
@@ -297,17 +295,20 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
 };
 
 export const validateLadderStep = async (current: string, target: string, guess: string): Promise<LadderValidation> => {
+    // Cache Check
+    const cacheKey = `${current.toLowerCase()}_${target.toLowerCase()}_${guess.toLowerCase()}`;
+    const cached = getCache(LADDER_CACHE_KEY)[cacheKey];
+    if (cached) {
+        console.log("Ladder: Cached Validation Hit");
+        return cached;
+    }
+
     try {
         const ai = getAI();
         const model = 'gemini-2.5-flash';
         const lang = getLanguage();
-        // Optimized Prompt
-        const prompt = `Word Ladder Validator.
-        Link: "${current}" -> "${guess}" -> ... -> "${target}"?
-        Lang: ${lang}.
-        1. isValid step? (true/false)
-        2. proximity (0-100) to target.
-        JSON: { isValid, message, emoji, proximity }`;
+        // Extremely compressed prompt
+        const prompt = `Check association: "${current}"->"${guess}"->"${target}". Lang:${lang}. JSON:{isValid,message,emoji,proximity(0-100)}`;
     
         const operation = () => ai.models.generateContent({
           model,
@@ -328,7 +329,12 @@ export const validateLadderStep = async (current: string, target: string, guess:
         });
     
         const response = await retryWithBackoff<GenerateContentResponse>(operation);
-        if (response.text) return JSON.parse(cleanJson(response.text));
+        if (response.text) {
+            const data = JSON.parse(cleanJson(response.text));
+            // Cache the result
+            saveCache(LADDER_CACHE_KEY, cacheKey, data);
+            return data;
+        }
         return { isValid: false, message: "Error" };
     } catch (error) {
         console.error("Ladder Validation Error:", error);
@@ -341,11 +347,7 @@ export const getLadderHint = async (current: string, target: string): Promise<La
       const ai = getAI();
       const model = 'gemini-2.5-flash';
       const lang = getLanguage();
-      const prompt = `Word Ladder Hint.
-      From "${current}" towards "${target}".
-      Output ONE bridge word.
-      Lang: ${lang}.
-      JSON: { word, reason }`;
+      const prompt = `WordLadder Hint: "${current}"->"${target}". One bridge word. Lang:${lang}. JSON:{word,reason}`;
   
       const operation = () => ai.models.generateContent({
         model,
@@ -372,24 +374,17 @@ export const getLadderHint = async (current: string, target: string): Promise<La
   }
 };
 
-// Optimized to fetch BATCH of 3 items
+// Batch increased to 5
 export const generateCipherChallengeBatch = async (exclude: string[] = []): Promise<CipherChallenge[]> => {
   try {
       const ai = getAI();
       const model = 'gemini-2.5-flash';
       const lang = getLanguage();
-      const excludeList = exclude.slice(-20).join(', ');
+      const excludeList = exclude.slice(-15).join(',');
 
-      const prompt = `Generate 3 Cipher Games.
-      Lang: ${lang}.
-      Exclude: [${excludeList}].
-      
-      Per item:
-      1. Category: Movies, Games, Anime, Heroes, Tech (Translate name).
-      2. Answer: Short famous name (1-3 words).
-      3. Rule: VISUAL/LOGIC only (Leet, Reverse, Anagram). NO Caesar/Math shifts.
-      
-      JSON Array: { original, encrypted, rule, category }`;
+      const prompt = `Gen 5 Cipher Games. Lang:${lang}. No:[${excludeList}]. 
+      Item: 1.Category(Movies/Games/Tech). 2.Answer(Famous name). 3.Rule(Visual/Logic/Leet only, NO shift/caesar).
+      JSON Array:{original,encrypted,rule,category}`;
 
       const operation = () => ai.models.generateContent({
         model,
