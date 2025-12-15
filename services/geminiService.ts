@@ -98,7 +98,8 @@ const retryWithBackoff = async <T>(
 // --- Local Storage Caches ---
 
 const ALCHEMY_CACHE_KEY = 'alchemy_v2_cache';
-const LADDER_CACHE_KEY = 'ladder_val_cache';
+// Updated key to v3 to invalidate old validations and enforce strict rules
+const LADDER_CACHE_KEY = 'ladder_val_cache_v3';
 
 const getCache = (key: string): Record<string, any> => {
     if (typeof localStorage === 'undefined') return {};
@@ -307,8 +308,21 @@ export const validateLadderStep = async (current: string, target: string, guess:
         const ai = getAI();
         const model = 'gemini-2.5-flash';
         const lang = getLanguage();
-        // Extremely compressed prompt
-        const prompt = `Check association: "${current}"->"${guess}"->"${target}". Lang:${lang}. JSON:{isValid,message,emoji,proximity(0-100)}`;
+        
+        // STRICT PROMPT FIX V3 - ANTI-JUMP & ANTI-RHYME
+        const prompt = `Game: Semantic Bridge (Word Ladder). Connect "${current}" to "${target}". Input: "${guess}".
+        
+        RULES:
+        1. MEANING ONLY: Semantic associations ONLY. NO Rhymes/Spelling.
+           - Example: "Bolo" (Cake) and "Galo" (Rooster) -> INVALID (Rhyme only).
+        
+        2. ANTI-SHORTCUT (CRITICAL):
+           - User typed the Target Word "${target}"?
+           - CHECK: Is "${current}" an IMMEDIATE neighbor of "${target}"? (e.g. Hen->Rooster is valid).
+           - IF NOT IMMEDIATE (e.g. Cake->Rooster): Mark INVALID. Message: "Too big of a jump! Build the bridge." or "Pulo muito grande! Construa a ponte." (in ${lang}).
+
+        3. Lang:${lang}.
+        JSON:{isValid,message,emoji,proximity(0-100)}`;
     
         const operation = () => ai.models.generateContent({
           model,
@@ -382,9 +396,11 @@ export const generateCipherChallengeBatch = async (exclude: string[] = []): Prom
       const lang = getLanguage();
       const excludeList = exclude.slice(-15).join(',');
 
-      // UPGRADED PROMPT FOR HIGHER DIFFICULTY
-      const prompt = `Gen 5 Cipher Games (Intermediate Difficulty). Lang:${lang}. No:[${excludeList}]. 
-      Item: 1.Category(Science/History/PopCulture/Literature). 2.Answer(Short Quote OR Full Character Name OR Movie Title). 3.Rule(Anagram/VowelSwap/KeyboardShift/ReverseSyllables/Logic - Creative).
+      // UPGRADED PROMPT FOR HIGHER DIFFICULTY - MIXED RULES
+      const prompt = `Gen 5 Cipher Games (Difficulty: Hard/Creative). Lang:${lang}. No:[${excludeList}]. 
+      Item: 1.Category(Science/History/PopCulture). 
+      2.Answer(Short Quote OR Character Name). 
+      3.Rule(Combine 2 mechanics: e.g., "Reverse words AND No vowels", "Shift keys AND Anagram", "Phonetic spelling AND Reverse").
       JSON Array:{original,encrypted,rule,category}`;
 
       const operation = () => ai.models.generateContent({
