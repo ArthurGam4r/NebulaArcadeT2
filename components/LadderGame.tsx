@@ -95,22 +95,20 @@ const LadderGame: React.FC = () => {
         const currentWord = steps[steps.length - 1].word;
         const guess = inputValue.trim();
 
-        // Check if direct win
-        if (guess.toLowerCase() === challenge.endWord.toLowerCase()) {
-            setSteps(prev => [...prev, { word: challenge.endWord, emoji: challenge.endEmoji }]);
-            setWon(true);
-            setValidating(false);
-            setInputValue('');
-            return;
-        }
-
         try {
+            // Logic change: We validate the step even if it IS the target word.
+            // This prevents skipping the logic if the words aren't actually related.
             const result = await validateLadderStep(currentWord, challenge.endWord, guess);
 
             if (result.isValid) {
                 setSteps(prev => [...prev, { word: guess, emoji: result.emoji || '🔗' }]);
                 setInputValue('');
                 setProximity(null);
+
+                // Check win AFTER validation
+                if (guess.toLowerCase() === challenge.endWord.toLowerCase()) {
+                    setWon(true);
+                }
             } else {
                 setFeedback(result.message);
                 if (result.proximity !== undefined) {

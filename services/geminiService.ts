@@ -382,8 +382,9 @@ export const generateCipherChallengeBatch = async (exclude: string[] = []): Prom
       const lang = getLanguage();
       const excludeList = exclude.slice(-15).join(',');
 
-      const prompt = `Gen 5 Cipher Games. Lang:${lang}. No:[${excludeList}]. 
-      Item: 1.Category(Movies/Games/Tech). 2.Answer(Famous name). 3.Rule(Visual/Logic/Leet only, NO shift/caesar).
+      // UPGRADED PROMPT FOR HIGHER DIFFICULTY
+      const prompt = `Gen 5 Cipher Games (Intermediate Difficulty). Lang:${lang}. No:[${excludeList}]. 
+      Item: 1.Category(Science/History/PopCulture/Literature). 2.Answer(Short Quote OR Full Character Name OR Movie Title). 3.Rule(Anagram/VowelSwap/KeyboardShift/ReverseSyllables/Logic - Creative).
       JSON Array:{original,encrypted,rule,category}`;
 
       const operation = () => ai.models.generateContent({
