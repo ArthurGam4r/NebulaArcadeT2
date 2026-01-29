@@ -8,48 +8,114 @@ import LadderGame from './components/LadderGame';
 import CipherGame from './components/CipherGame';
 import ArenaGame from './components/ArenaGame';
 
-// Fix: Use the globally defined AIStudio type to prevent declaration conflicts and match environment types
-declare global {
-  interface Window {
-    aistudio: AIStudio;
-  }
-}
-
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
-  const [showApiHelp, setShowApiHelp] = useState(false);
-  const [apiStatus, setApiStatus] = useState<boolean>(!!process.env.API_KEY);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isChecking, setIsChecking] = useState<boolean>(true);
+  
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
 
-  // Sync API status
+  // Check if API key is available or previously selected
   useEffect(() => {
-      const checkKey = async () => {
-          if (process.env.API_KEY) {
-              setApiStatus(true);
-          } else if (window.aistudio) {
-              const selected = await window.aistudio.hasSelectedApiKey();
-              setApiStatus(selected);
-          }
-      };
-      checkKey();
+    const checkAuth = async () => {
+      // If key is already in env, we are good
+      if (process.env.API_KEY) {
+        setIsAuthenticated(true);
+        setIsChecking(false);
+        return;
+      }
+
+      // Fix: Use type assertion for aistudio to avoid conflicts with environment-provided global declarations
+      // This resolves "All declarations of 'aistudio' must have identical modifiers" and type mismatch errors.
+      const aiStudio = (window as any).aistudio;
+      if (aiStudio) {
+        try {
+          const hasKey = await aiStudio.hasSelectedApiKey();
+          setIsAuthenticated(hasKey);
+        } catch (e) {
+          console.error("Auth check failed:", e);
+        }
+      }
+      setIsChecking(false);
+    };
+    checkAuth();
   }, []);
 
-  const handleApiAction = async () => {
-      if (!apiStatus && window.aistudio) {
-          try {
-              await window.aistudio.openSelectKey();
-              // After triggering the key selection, we proceed as if successful
-              setApiStatus(true);
-              setShowApiHelp(false);
-          } catch (e) {
-              console.error("Erro ao selecionar chave:", e);
-              setShowApiHelp(true);
-          }
-      } else if (!apiStatus) {
-          setShowApiHelp(!showApiHelp);
+  const handleLogin = async () => {
+    // Fix: Access aistudio via window casting to resolve redeclaration issues in the environment
+    const aiStudio = (window as any).aistudio;
+    if (aiStudio) {
+      try {
+        await aiStudio.openSelectKey();
+        // Rule: Assume success after opening dialog to avoid race conditions
+        setIsAuthenticated(true);
+      } catch (e) {
+        console.error("Failed to open key selector:", e);
       }
+    } else {
+        alert(isPt ? "Ambiente não suportado para seleção de chave." : "Environment doesn't support key selection.");
+    }
   };
 
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Login Screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-purple-900/20 pointer-events-none"></div>
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full animate-pulse delay-700"></div>
+
+        <div className="max-w-md w-full text-center relative z-10 space-y-8 animate-fade-in">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-2xl shadow-indigo-500/20 animate-bounce-slow">
+            <span className="text-5xl">🌌</span>
+          </div>
+          
+          <div>
+            <h1 className="text-5xl font-black tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+              Nebula Arcade
+            </h1>
+            <p className="text-slate-400 text-lg leading-relaxed">
+              {isPt 
+                ? "Conecte sua inteligência artificial para começar a jogar." 
+                : "Connect your artificial intelligence to start playing."}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <button 
+              onClick={handleLogin}
+              className="w-full bg-white text-black font-bold py-4 px-8 rounded-2xl hover:bg-slate-200 transition-all transform active:scale-95 shadow-xl flex items-center justify-center gap-3 text-lg"
+            >
+              <span>🔑</span>
+              {isPt ? "Conectar Chave Gemini" : "Connect Gemini Key"}
+            </button>
+            
+            <div className="pt-4 border-t border-slate-800">
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-xs text-slate-500 hover:text-indigo-400 underline underline-offset-4 transition-colors"
+              >
+                {isPt ? "Informações sobre faturamento e limites da API" : "Billing and API limit information"}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main Arcade Content
   const renderGame = () => {
     switch (activeGame) {
       case GameType.ALCHEMY: return <AlchemyGame />;
@@ -77,44 +143,22 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-4">
-                <button 
-                    onClick={handleApiAction}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-105 active:scale-95 ${
-                        apiStatus 
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-                        : 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse'
-                    }`}
-                >
-                    <span className={`w-2 h-2 rounded-full ${apiStatus ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></span>
-                    {apiStatus ? 'API OK' : (isPt ? 'Configurar Chave' : 'Setup API Key')}
-                </button>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                    API ONLINE
+                </div>
 
                 {activeGame !== GameType.NONE && (
                     <button 
                         onClick={() => setActiveGame(GameType.NONE)}
                         className="text-sm font-medium text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-3 py-1.5 rounded-md hover:bg-slate-700 border border-slate-700"
                     >
-                        ← {isPt ? 'Voltar' : 'Back'}
+                        ← {isPt ? 'Início' : 'Home'}
                     </button>
                 )}
             </div>
         </div>
       </header>
-
-      {showApiHelp && !apiStatus && (
-          <div className="bg-red-950/40 border-b border-red-800/50 p-6 text-center animate-fade-in relative z-40">
-              <div className="max-w-2xl mx-auto flex flex-col items-center gap-4">
-                  <p className="text-sm text-red-200 leading-relaxed">
-                      {isPt 
-                        ? "⚠️ A IA não está respondendo. Para funcionar no Vercel/GitHub, você deve configurar a API_KEY nas 'Environment Variables' do projeto. Se estiver no Preview, clique no botão superior para selecionar sua chave." 
-                        : "⚠️ AI not responding. To work on Vercel/GitHub, configure API_KEY in project 'Environment Variables'. If in Preview, click the top button to select your key."}
-                  </p>
-                  <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-xs text-red-400 hover:underline">
-                      {isPt ? "Saiba mais sobre limites e faturamento" : "Learn more about limits and billing"}
-                  </a>
-              </div>
-          </div>
-      )}
 
       <main className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
@@ -123,13 +167,8 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <footer className="py-6 border-t border-slate-800 text-center text-slate-500 text-xs relative z-10 bg-[#0f172a] flex flex-col gap-2 items-center">
-        <p>Powered by Gemini API • {isPt ? 'Criado com React & Tailwind' : 'Built with React & Tailwind'}</p>
-        <div className="flex gap-4">
-             <a href="https://ai.google.dev/pricing" target="_blank" rel="noreferrer" className="text-slate-700 hover:text-blue-400 underline">
-                {isPt ? 'Limites & Preços' : 'Limits & Pricing'}
-            </a>
-        </div>
+      <footer className="py-6 border-t border-slate-800 text-center text-slate-500 text-xs relative z-10 bg-[#0f172a]">
+        <p>Nebula Arcade &copy; 2025 • Gemini Powered • 🌌</p>
       </footer>
     </div>
   );
@@ -196,12 +235,6 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
     }
   ], [isPt]);
 
-  const allTags = useMemo(() => {
-    const tagsSet = new Set<string>();
-    gamesList.forEach(g => g.tags.forEach(t => tagsSet.add(t)));
-    return Array.from(tagsSet);
-  }, [gamesList]);
-
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase();
     if (!q) return gamesList;
@@ -211,136 +244,47 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
     );
   }, [search, gamesList]);
 
-  const t = {
-      heroTitle: isPt ? "Explore o Infinito" : "Explore the Infinite",
-      heroSub: isPt ? "Mini-games gerados por IA. Cada jogada é única." : "AI-generated mini-games. Every playthrough is unique.",
-      searchPlaceholder: isPt ? "Buscar jogo ou tag..." : "Search game or tag...",
-      play: isPt ? "Jogar Agora" : "Play Now",
-      noResults: isPt ? "Nenhum jogo encontrado espacialmente..." : "No games found in this sector..."
-  };
-
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 animate-fade-in">
         <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-6xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
-                {t.heroTitle}
+            <h2 className="text-4xl md:text-6xl font-black mb-4">
+                {isPt ? "Explore o Infinito" : "Explore the Infinite"}
             </h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-8">
-                {t.heroSub}
-            </p>
-
             <div className="relative max-w-xl mx-auto group">
-                <div className="absolute inset-0 bg-blue-500/10 blur-xl group-focus-within:bg-purple-500/20 transition-all duration-500"></div>
-                <div className="relative flex flex-col gap-4">
-                    <div className="flex items-center">
-                        <span className="absolute left-4 text-slate-500">🔍</span>
-                        <input 
-                            type="text" 
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder={t.searchPlaceholder}
-                            className="w-full bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full py-4 pl-12 pr-6 text-white outline-none focus:border-indigo-500/50 transition-all shadow-xl"
-                        />
-                    </div>
-                    
-                    <div className="flex flex-wrap justify-center gap-2">
-                        {allTags.map(tag => (
-                            <button
-                                key={tag}
-                                onClick={() => setSearch(search === tag ? '' : tag)}
-                                className={`text-[10px] px-3 py-1 rounded-full border transition-all ${
-                                    search.toLowerCase() === tag.toLowerCase() 
-                                    ? 'bg-indigo-600 border-indigo-400 text-white' 
-                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
-                                }`}
-                            >
-                                #{tag}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                <input 
+                    type="text" 
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={isPt ? "Buscar jogo..." : "Search game..."}
+                    className="w-full bg-slate-900/80 border border-slate-700 rounded-full py-4 px-6 text-white outline-none focus:border-indigo-500/50 shadow-xl"
+                />
             </div>
         </div>
 
-        {filteredGames.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredGames.map((game) => (
-                    <GameCard 
-                        key={game.id}
-                        title={game.title}
-                        description={game.description}
-                        icon={game.icon}
-                        color={game.color}
-                        tags={game.tags}
-                        isNew={game.isNew}
-                        playText={t.play}
-                        onClick={() => onSelect(game.id)}
-                    />
-                ))}
-            </div>
-        ) : (
-            <div className="text-center py-20 animate-pulse">
-                <span className="text-6xl mb-4 block">🛸</span>
-                <p className="text-slate-500 font-medium">{t.noResults}</p>
-                <button onClick={() => setSearch('')} className="mt-4 text-blue-400 hover:underline">Ver todos / See all</button>
-            </div>
-        )}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredGames.map((game) => (
+                <button 
+                    key={game.id}
+                    onClick={() => onSelect(game.id)}
+                    className="group relative bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-2xl p-6 text-left transition-all hover:-translate-y-1 h-full flex flex-col"
+                >
+                    <div className="text-4xl mb-4 bg-slate-900 w-16 h-16 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                        {game.icon}
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">{game.title}</h3>
+                    <p className="text-slate-400 text-sm mb-4 flex-1">{game.description}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-auto">
+                        {game.tags.map(tag => (
+                            <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900/50 text-slate-500 border border-slate-700">
+                                #{tag}
+                            </span>
+                        ))}
+                    </div>
+                </button>
+            ))}
+        </div>
     </div>
   );
 };
-
-interface GameCardProps {
-    title: string;
-    description: string;
-    icon: string;
-    color: string;
-    tags: string[];
-    isNew?: boolean;
-    playText: string;
-    onClick: () => void;
-}
-
-const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, tags, isNew, playText, onClick }) => {
-    return (
-        <button 
-            onClick={onClick}
-            className="group relative bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-2xl p-6 text-left transition-all hover:shadow-2xl hover:-translate-y-1 overflow-hidden h-full flex flex-col"
-        >
-            <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-10 blur-2xl rounded-full transform translate-x-10 -translate-y-10 group-hover:opacity-20 transition-opacity`}></div>
-            
-            {isNew && (
-                <div className="absolute top-4 right-4 animate-pulse">
-                    <span className="bg-gradient-to-r from-yellow-400 to-amber-600 text-[10px] font-black px-2 py-1 rounded shadow-lg shadow-amber-900/50 text-black uppercase tracking-tighter">
-                        Novo / New
-                    </span>
-                </div>
-            )}
-
-            <div className="text-4xl mb-4 bg-slate-900 w-16 h-16 rounded-xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300">
-                {icon}
-            </div>
-            
-            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-slate-300">
-                {title}
-            </h3>
-            
-            <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">
-                {description}
-            </p>
-
-            <div className="flex flex-wrap gap-1.5 mb-6">
-                {tags.map(tag => (
-                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900/50 text-slate-500 border border-slate-700 group-hover:border-slate-600 group-hover:text-slate-300 transition-colors">
-                        #{tag}
-                    </span>
-                ))}
-            </div>
-
-            <div className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-white transition-colors mt-auto">
-                {playText} <span className="ml-2">→</span>
-            </div>
-        </button>
-    )
-}
 
 export default App;

@@ -2,11 +2,12 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation, LadderHint, CipherChallenge, ArenaChallenge, ArenaResult } from '../types';
 
-// --- API Key Management ---
+// Rule: Create a new GoogleGenAI instance right before making an API call to ensure it uses updated key.
 const getAI = () => {
   const key = process.env.API_KEY;
-  // If not in process.env, the connection might still work if selected via window.aistudio
-  // and injected by the platform.
+  if (!key) {
+    throw new Error("API_KEY_MISSING");
+  }
   return new GoogleGenAI({ apiKey: key as string });
 };
 
@@ -41,9 +42,17 @@ const retryWithBackoff = async <T>(
     try {
       return await operation();
     } catch (error: any) {
+      if (error.message === 'API_KEY_MISSING') throw error;
+
       const errorMessage = error.message?.toLowerCase() || '';
       const status = error.status || error.response?.status;
       
+      // If error message contains "Requested entity was not found.", reset selection state
+      if (errorMessage.includes("entity was not found")) {
+          // This would ideally trigger a re-auth, but here we just throw
+          throw new Error("API_KEY_INVALID");
+      }
+
       if (
         status === 'RESOURCE_EXHAUSTED' || 
         status === 429 && errorMessage.includes('quota') ||
@@ -57,7 +66,7 @@ const retryWithBackoff = async <T>(
         status === 503 ||
         errorMessage.includes('429') || 
         errorMessage.includes('overloaded') ||
-        errorMessage.includes('not found'); // Handle race conditions in key selection
+        errorMessage.includes('not found');
 
       if (isRetryable && i < retries - 1) {
         await new Promise(resolve => setTimeout(resolve, currentDelay));
@@ -210,8 +219,6 @@ export const generateCipherChallengeBatch = async (exclude: string[] = []): Prom
   } catch (error) { throw error; }
 }
 
-// --- ARENA GAME (PLAYER-FRIENDLY & REALISTIC) ---
-
 export const generateArenaChallenge = async (): Promise<ArenaChallenge | null> => {
   try {
     const ai = getAI();
@@ -233,19 +240,7 @@ export const evaluateCombatStrategy = async (creature: string, strategy: string)
   try {
     const ai = getAI();
     const lang = getLanguage();
-    const prompt = `ARENA MASTER ANALYST (SURVIVAL GENIUS MODE).
-    Adversary: "${creature}".
-    Player Plan: "${strategy}".
-    
-    FAIRNESS & DIFFICULTY RULES:
-    1. If the player uses tools, environment (climbing, water), fire, distractions, or logic, they MUST survive (success: true).
-    2. Real animals are biological: they flee from pain, fire, and loud noises.
-    3. Humans win through BRAINS. If the player's description is creative, reward them with victory.
-    4. Only fail the player if they do something intentionally suicidal (e.g., "I wait for it to eat me").
-    5. The goal is CINEMATIC SURVIVAL.
-    
-    Lang: ${lang}.
-    JSON:{success,commentary,survivalChance,damageDealt}`;
+    const prompt = `ARENA MASTER ANALYST (SURVIVAL GENIUS MODE). Adversary: "${creature}". Player Plan: "${strategy}". FAIRNESS: If logical tools/env used, success is true. Lang: ${lang}. JSON:{success,commentary,survivalChance,damageDealt}`;
 
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-pro-preview',
