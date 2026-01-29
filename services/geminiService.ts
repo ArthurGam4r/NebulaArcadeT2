@@ -1,37 +1,10 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation, LadderHint, CipherChallenge } from '../types';
+import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation, LadderHint, CipherChallenge, ArenaChallenge, ArenaResult } from '../types';
 
-// --- API Key Management for Static Hosting ---
-const STORAGE_KEY = 'nebula_api_key';
-
-export const hasApiKey = (): boolean => {
-  if (typeof window !== 'undefined') {
-    return !!localStorage.getItem(STORAGE_KEY) || !!process.env.API_KEY;
-  }
-  return !!process.env.API_KEY;
-};
-
-export const setApiKey = (key: string) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY, key);
-  }
-};
-
-export const removeApiKey = () => {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(STORAGE_KEY);
-  }
-};
-
+// --- API Key Management ---
 const getAI = () => {
-  let key = process.env.API_KEY;
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) key = stored;
-  }
-  
-  if (!key) throw new Error("API Key Missing");
-  return new GoogleGenAI({ apiKey: key });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 };
 
 // --- Helpers ---
@@ -47,7 +20,6 @@ const getLanguage = (): string => {
   return 'pt-BR';
 };
 
-// Custom Error for Quota
 export class QuotaExceededError extends Error {
   constructor() {
     super("Quota Exceeded");
@@ -98,7 +70,6 @@ const retryWithBackoff = async <T>(
 // --- Local Storage Caches ---
 
 const ALCHEMY_CACHE_KEY = 'alchemy_v2_cache';
-// Updated key to v3 to invalidate old validations and enforce strict rules
 const LADDER_CACHE_KEY = 'ladder_val_cache_v3';
 
 const getCache = (key: string): Record<string, any> => {
@@ -112,7 +83,6 @@ const saveCache = (key: string, id: string, data: any) => {
     if (typeof localStorage === 'undefined') return;
     const cache = getCache(key);
     cache[id] = data;
-    // Limit cache size to avoid localStorage limits
     const keys = Object.keys(cache);
     if (keys.length > 500) delete cache[keys[0]]; 
     localStorage.setItem(key, JSON.stringify(cache));
@@ -124,17 +94,12 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
   const cacheKey = [elem1, elem2].sort().join('+').toLowerCase();
   const cached = getCache(ALCHEMY_CACHE_KEY)[cacheKey];
   
-  if (cached) {
-      console.log("Alchemy: Cached Hit");
-      return { ...cached, id: Date.now().toString(), isNew: false };
-  }
+  if (cached) return { ...cached, id: Date.now().toString(), isNew: false };
 
   try {
     const ai = getAI();
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-flash-preview';
     const lang = getLanguage();
-    
-    // Hyper-compressed prompt
     const prompt = `InfiniteCraft. Combine "${elem1}"+"${elem2}". Lang:${lang}. Out:1 noun(Real/PopCulture). JSON:{name,emoji}`;
 
     const operation = () => ai.models.generateContent({
@@ -157,33 +122,19 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
 
     if (response.text) {
       const data = JSON.parse(cleanJson(response.text));
-      const result = {
-        id: Date.now().toString(),
-        name: data.name,
-        emoji: data.emoji,
-        isNew: true
-      };
       saveCache(ALCHEMY_CACHE_KEY, cacheKey, { name: data.name, emoji: data.emoji });
-      return result;
+      return { id: Date.now().toString(), name: data.name, emoji: data.emoji, isNew: true };
     }
     return null;
-
-  } catch (error) {
-    console.error("Alchemy Error:", error);
-    throw error;
-  }
+  } catch (error) { throw error; }
 };
 
-// Batch increased to 5
 export const generateEmojiChallengeBatch = async (exclude: string[] = []): Promise<EmojiChallenge[]> => {
   try {
     const ai = getAI();
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-flash-preview';
     const lang = getLanguage();
-    
-    // Limit exclusion to last 15 to save input tokens
     const excludeList = exclude.slice(-15).join(','); 
-    
     const prompt = `List 5 distinct Blockbusters(Movie/Game). No:[${excludeList}]. Lang:${lang}. JSON Array:{answer,emojis,hints[5](hard->easy)}`;
 
     const operation = () => ai.models.generateContent({
@@ -207,25 +158,16 @@ export const generateEmojiChallengeBatch = async (exclude: string[] = []): Promi
     });
 
     const response = await retryWithBackoff<GenerateContentResponse>(operation);
-
-    if (response.text) {
-      return JSON.parse(cleanJson(response.text)) as EmojiChallenge[];
-    }
+    if (response.text) return JSON.parse(cleanJson(response.text));
     return [];
-
-  } catch (error) {
-    console.error("Emoji Error:", error);
-    throw error;
-  }
+  } catch (error) { throw error; }
 };
 
-// Batch increased to 5
 export const generateDilemmaBatch = async (): Promise<DilemmaScenario[]> => {
   try {
     const ai = getAI();
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-flash-preview';
     const lang = getLanguage();
-    
     const prompt = `5 funny "Would You Rather". Lang:${lang}. JSON Array:{title,description,optionA,optionB,consequenceA,consequenceB}`;
 
     const operation = () => ai.models.generateContent({
@@ -254,18 +196,14 @@ export const generateDilemmaBatch = async (): Promise<DilemmaScenario[]> => {
     const response = await retryWithBackoff<GenerateContentResponse>(operation);
     if (response.text) return JSON.parse(cleanJson(response.text));
     return [];
-  } catch (error) {
-    console.error("Dilemma Error:", error);
-    throw error;
-  }
+  } catch (error) { throw error; }
 };
 
 export const generateLadderChallenge = async (): Promise<LadderChallenge | null> => {
   try {
     const ai = getAI();
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-flash-preview';
     const lang = getLanguage();
-    // Compressed prompt
     const prompt = `2 nouns(Start/End) for WordLadder(5 steps). Lang:${lang}. JSON:{startWord,endWord,startEmoji,endEmoji}`;
 
     const operation = () => ai.models.generateContent({
@@ -289,39 +227,22 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
     const response = await retryWithBackoff<GenerateContentResponse>(operation);
     if (response.text) return JSON.parse(cleanJson(response.text));
     return null;
-  } catch (error) {
-    console.error("Ladder Error:", error);
-    throw error;
-  }
+  } catch (error) { throw error; }
 };
 
 export const validateLadderStep = async (current: string, target: string, guess: string): Promise<LadderValidation> => {
-    // Cache Check
     const cacheKey = `${current.toLowerCase()}_${target.toLowerCase()}_${guess.toLowerCase()}`;
     const cached = getCache(LADDER_CACHE_KEY)[cacheKey];
-    if (cached) {
-        console.log("Ladder: Cached Validation Hit");
-        return cached;
-    }
+    if (cached) return cached;
 
     try {
         const ai = getAI();
-        const model = 'gemini-2.5-flash';
+        const model = 'gemini-3-pro-preview';
         const lang = getLanguage();
-        
-        // STRICT PROMPT FIX V3 - ANTI-JUMP & ANTI-RHYME
         const prompt = `Game: Semantic Bridge (Word Ladder). Connect "${current}" to "${target}". Input: "${guess}".
-        
         RULES:
         1. MEANING ONLY: Semantic associations ONLY. NO Rhymes/Spelling.
-           - Example: "Bolo" (Cake) and "Galo" (Rooster) -> INVALID (Rhyme only).
-        
-        2. ANTI-SHORTCUT (CRITICAL):
-           - User typed the Target Word "${target}"?
-           - CHECK: Is "${current}" an IMMEDIATE neighbor of "${target}"? (e.g. Hen->Rooster is valid).
-           - IF NOT IMMEDIATE (e.g. Cake->Rooster): Mark INVALID. Message: "Too big of a jump! Build the bridge." or "Pulo muito grande! Construa a ponte." (in ${lang}).
-
-        3. Lang:${lang}.
+        2. ANTI-SHORTCUT (CRITICAL): If user types target "${target}", reject if not an immediate semantic neighbor. Lang:${lang}.
         JSON:{isValid,message,emoji,proximity(0-100)}`;
     
         const operation = () => ai.models.generateContent({
@@ -345,24 +266,19 @@ export const validateLadderStep = async (current: string, target: string, guess:
         const response = await retryWithBackoff<GenerateContentResponse>(operation);
         if (response.text) {
             const data = JSON.parse(cleanJson(response.text));
-            // Cache the result
             saveCache(LADDER_CACHE_KEY, cacheKey, data);
             return data;
         }
         return { isValid: false, message: "Error" };
-    } catch (error) {
-        console.error("Ladder Validation Error:", error);
-        throw error;
-    }
+    } catch (error) { throw error; }
 };
 
 export const getLadderHint = async (current: string, target: string): Promise<LadderHint | null> => {
   try {
       const ai = getAI();
-      const model = 'gemini-2.5-flash';
+      const model = 'gemini-3-flash-preview';
       const lang = getLanguage();
       const prompt = `WordLadder Hint: "${current}"->"${target}". One bridge word. Lang:${lang}. JSON:{word,reason}`;
-  
       const operation = () => ai.models.generateContent({
         model,
         contents: prompt,
@@ -378,31 +294,19 @@ export const getLadderHint = async (current: string, target: string): Promise<La
           }
         }
       });
-  
       const response = await retryWithBackoff<GenerateContentResponse>(operation);
       if (response.text) return JSON.parse(cleanJson(response.text));
       return null;
-  } catch (error) {
-      console.error("Ladder Hint Error:", error);
-      throw error;
-  }
+  } catch (error) { throw error; }
 };
 
-// Batch increased to 5
 export const generateCipherChallengeBatch = async (exclude: string[] = []): Promise<CipherChallenge[]> => {
   try {
       const ai = getAI();
-      const model = 'gemini-2.5-flash';
+      const model = 'gemini-3-flash-preview';
       const lang = getLanguage();
       const excludeList = exclude.slice(-15).join(',');
-
-      // UPGRADED PROMPT FOR HIGHER DIFFICULTY - MIXED RULES
-      const prompt = `Gen 5 Cipher Games (Difficulty: Hard/Creative). Lang:${lang}. No:[${excludeList}]. 
-      Item: 1.Category(Science/History/PopCulture). 
-      2.Answer(Short Quote OR Character Name). 
-      3.Rule(Combine 2 mechanics: e.g., "Reverse words AND No vowels", "Shift keys AND Anagram", "Phonetic spelling AND Reverse").
-      JSON Array:{original,encrypted,rule,category}`;
-
+      const prompt = `Gen 5 Cipher Games (Difficulty: Hard). Lang:${lang}. No:[${excludeList}]. JSON Array:{original,encrypted,rule,category}`;
       const operation = () => ai.models.generateContent({
         model,
         contents: prompt,
@@ -423,12 +327,82 @@ export const generateCipherChallengeBatch = async (exclude: string[] = []): Prom
             }
           }
       });
-
       const response = await retryWithBackoff<GenerateContentResponse>(operation);
       if (response.text) return JSON.parse(cleanJson(response.text));
       return [];
-  } catch (error) {
-      console.error("Cipher Error:", error);
-      throw error;
-  }
+  } catch (error) { throw error; }
 }
+
+// --- ARENA GAME ---
+
+export const generateArenaChallenge = async (): Promise<ArenaChallenge | null> => {
+  try {
+    const ai = getAI();
+    const model = 'gemini-3-flash-preview';
+    const lang = getLanguage();
+    const prompt = `Generate a creature for a survival game. Can be a real animal, dinosaur, or mythological/fictional beast. Keep it diverse but avoid impossible gods. Lang:${lang}. JSON:{creature,emoji,description,difficulty}`;
+
+    const operation = () => ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            creature: { type: Type.STRING },
+            emoji: { type: Type.STRING },
+            description: { type: Type.STRING },
+            difficulty: { type: Type.STRING, enum: ['Easy', 'Medium', 'Hard', 'Legendary'] },
+          },
+          required: ['creature', 'emoji', 'description', 'difficulty']
+        }
+      }
+    });
+
+    const response = await retryWithBackoff<GenerateContentResponse>(operation);
+    if (response.text) return JSON.parse(cleanJson(response.text));
+    return null;
+  } catch (error) { throw error; }
+};
+
+export const evaluateCombatStrategy = async (creature: string, strategy: string): Promise<ArenaResult | null> => {
+  try {
+    const ai = getAI();
+    const model = 'gemini-3-pro-preview';
+    const lang = getLanguage();
+    const prompt = `SURVIVAL ARENA ANALYST (FAIR MODE).
+    Creature: "${creature}".
+    Player Strategy: "${strategy}".
+    
+    Balance Guidelines:
+    1. Reward Creativity: If the player uses tools, environment, or biological weaknesses (e.g., tickling, bright lights, high pitch), increase survival chances significantly.
+    2. Be Fair: Human logic vs Beast instinct. Even legendary beasts have weaknesses. Avoid "insta-death" unless the strategy is truly suicidal.
+    3. Ironic Humor: If the strategy is funny but plausible in a cartoonish way, allow a high survival chance with a humorous comment.
+    
+    Lang: ${lang}.
+    JSON:{success,commentary,survivalChance,damageDealt}`;
+
+    const operation = () => ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            success: { type: Type.BOOLEAN, description: "True if survivalChance > 50" },
+            commentary: { type: Type.STRING, description: "Detailed explanation of what happens" },
+            survivalChance: { type: Type.NUMBER, description: "0-100 percentage" },
+            damageDealt: { type: Type.NUMBER, description: "0-100 percentage" },
+          },
+          required: ['success', 'commentary', 'survivalChance', 'damageDealt']
+        }
+      }
+    });
+
+    const response = await retryWithBackoff<GenerateContentResponse>(operation);
+    if (response.text) return JSON.parse(cleanJson(response.text));
+    return null;
+  } catch (error) { throw error; }
+};

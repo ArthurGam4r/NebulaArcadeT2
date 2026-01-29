@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CipherChallenge } from '../types';
-import { generateCipherChallengeBatch, removeApiKey } from '../services/geminiService';
+import { generateCipherChallengeBatch } from '../services/geminiService';
 
 const CipherGame: React.FC = () => {
     const [challenge, setChallenge] = useState<CipherChallenge | null>(null);
@@ -46,7 +47,6 @@ const CipherGame: React.FC = () => {
         giveUp: isPt ? "Desistir" : "Give Up",
         was: isPt ? "A frase era:" : "The phrase was:",
         quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
-        changeKey: isPt ? "Trocar Chave API" : "Change API Key",
         resetHistory: isPt ? "Limpar Histórico" : "Clear History"
     };
 
@@ -128,11 +128,6 @@ const CipherGame: React.FC = () => {
         addToHistory(challenge.original);
     }
 
-    const handleChangeKey = () => {
-        removeApiKey();
-        window.location.reload();
-    }
-
     const handleNext = () => {
         loadGame(history);
     }
@@ -148,12 +143,6 @@ const CipherGame: React.FC = () => {
           <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-md mx-auto p-8 animate-fade-in text-center font-mono text-green-500">
                <div className="text-6xl mb-4">🛑</div>
                <h2 className="text-2xl font-bold text-red-500 mb-2">{t.quotaMsg}</h2>
-               <button 
-                  onClick={handleChangeKey}
-                  className="bg-red-600 hover:bg-red-500 text-black font-bold py-3 px-8 rounded border border-red-400 transition-colors mt-4"
-              >
-                  {t.changeKey}
-              </button>
           </div>
         )
     }

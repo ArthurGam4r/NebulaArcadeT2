@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { DilemmaScenario } from '../types';
-import { generateDilemmaBatch, removeApiKey } from '../services/geminiService';
+import { generateDilemmaBatch } from '../services/geminiService';
 
 const DilemmaGame: React.FC = () => {
   const [scenario, setScenario] = useState<DilemmaScenario | null>(null);
@@ -20,8 +21,7 @@ const DilemmaGame: React.FC = () => {
       loading: isPt ? "A IA está criando um caos moral..." : "AI is creating moral chaos...",
       next: isPt ? "Próximo Dilema" : "Next Dilemma",
       error: isPt ? "Falha ao carregar." : "Failed to load.",
-      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
-      changeKey: isPt ? "Trocar Chave API" : "Change API Key"
+      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!"
   };
 
   useEffect(() => {
@@ -69,22 +69,11 @@ const DilemmaGame: React.FC = () => {
     setResult(choice);
   };
 
-  const handleChangeKey = () => {
-      removeApiKey();
-      window.location.reload();
-  }
-
   if (quotaError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-md mx-auto p-8 animate-fade-in text-center">
              <div className="text-6xl mb-4">🛑</div>
              <h2 className="text-2xl font-bold text-red-400 mb-2">{t.quotaMsg}</h2>
-             <button 
-                onClick={handleChangeKey}
-                className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-full transition-colors mt-4"
-            >
-                {t.changeKey}
-            </button>
         </div>
       )
   }

@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { LadderChallenge } from '../types';
-import { generateLadderChallenge, validateLadderStep, getLadderHint, removeApiKey } from '../services/geminiService';
+import { generateLadderChallenge, validateLadderStep, getLadderHint } from '../services/geminiService';
 
 interface Step {
     word: string;
@@ -40,7 +41,6 @@ const LadderGame: React.FC = () => {
         steps: isPt ? "Passos:" : "Steps:",
         error: isPt ? "Erro ao conectar" : "Connection failed",
         quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
-        changeKey: isPt ? "Trocar Chave API" : "Change API Key",
         hintBtn: isPt ? "Pedir Dica" : "Get Hint",
         hintLoading: isPt ? "Pensando..." : "Thinking...",
         hot: isPt ? "QUENTE 🔥" : "HOT 🔥",
@@ -96,8 +96,6 @@ const LadderGame: React.FC = () => {
         const guess = inputValue.trim();
 
         try {
-            // Logic change: We validate the step even if it IS the target word.
-            // This prevents skipping the logic if the words aren't actually related.
             const result = await validateLadderStep(currentWord, challenge.endWord, guess);
 
             if (result.isValid) {
@@ -147,11 +145,6 @@ const LadderGame: React.FC = () => {
         setHintLoading(false);
     };
 
-    const handleChangeKey = () => {
-      removeApiKey();
-      window.location.reload();
-    }
-
     const getProximityColor = (val: number) => {
         if (val < 25) return 'text-blue-300';
         if (val < 60) return 'text-yellow-300';
@@ -169,12 +162,6 @@ const LadderGame: React.FC = () => {
           <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-md mx-auto p-8 animate-fade-in text-center">
                <div className="text-6xl mb-4">🛑</div>
                <h2 className="text-2xl font-bold text-red-400 mb-2">{t.quotaMsg}</h2>
-               <button 
-                  onClick={handleChangeKey}
-                  className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-full transition-colors mt-4"
-              >
-                  {t.changeKey}
-              </button>
           </div>
         )
     }

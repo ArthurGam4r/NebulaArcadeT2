@@ -4,7 +4,8 @@ export enum GameType {
   EMOJI = 'EMOJI',
   DILEMMA = 'DILEMMA',
   LADDER = 'LADDER',
-  CIPHER = 'CIPHER'
+  CIPHER = 'CIPHER',
+  ARENA = 'ARENA'
 }
 
 export interface AlchemyElement {
@@ -25,8 +26,8 @@ export interface DilemmaScenario {
   description: string;
   optionA: string;
   optionB: string;
-  consequenceA: string; // What AI thinks happens if you choose A
-  consequenceB: string; // What AI thinks happens if you choose B
+  consequenceA: string;
+  consequenceB: string;
 }
 
 export interface LadderChallenge {
@@ -38,9 +39,9 @@ export interface LadderChallenge {
 
 export interface LadderValidation {
   isValid: boolean;
-  message: string; // Why it is valid or invalid
-  emoji?: string; // Emoji for the valid step
-  proximity?: number; // 0 to 100 score of how close/good the word is even if invalid
+  message: string;
+  emoji?: string;
+  proximity?: number;
 }
 
 export interface LadderHint {
@@ -51,8 +52,22 @@ export interface LadderHint {
 export interface CipherChallenge {
   original: string;
   encrypted: string;
-  rule: string; // e.g., "Vowels are numbers", "Reverse words"
-  category: string; // e.g., "Proverb", "Movie Quote"
+  rule: string;
+  category: string;
+}
+
+export interface ArenaChallenge {
+  creature: string;
+  emoji: string;
+  description: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Legendary';
+}
+
+export interface ArenaResult {
+  success: boolean;
+  commentary: string;
+  survivalChance: number; // 0-100
+  damageDealt: number; // 0-100
 }
 
 export interface LoaderState {

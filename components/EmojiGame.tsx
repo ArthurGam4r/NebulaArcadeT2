@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { EmojiChallenge } from '../types';
-import { generateEmojiChallengeBatch, removeApiKey } from '../services/geminiService';
+import { generateEmojiChallengeBatch } from '../services/geminiService';
 
 const EmojiGame: React.FC = () => {
   const [challenge, setChallenge] = useState<EmojiChallenge | null>(null);
@@ -49,8 +50,7 @@ const EmojiGame: React.FC = () => {
       error: isPt ? "Erro ao carregar. Tente recarregar." : "Error loading. Try reloading.",
       failTitle: isPt ? "Que pena!" : "Too bad!",
       resetHistory: isPt ? "Limpar Histórico" : "Clear History",
-      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
-      changeKey: isPt ? "Trocar Chave API" : "Change API Key"
+      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!"
   };
 
   useEffect(() => {
@@ -190,11 +190,6 @@ const EmojiGame: React.FC = () => {
       window.location.reload();
   }
 
-  const handleChangeKey = () => {
-      removeApiKey();
-      window.location.reload();
-  }
-
   const levelTitle = getLevelTitle(xp);
   const barPercentage = xp < 0 ? 0 : (xp % 100); 
 
@@ -211,12 +206,6 @@ const EmojiGame: React.FC = () => {
         <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto p-8 animate-fade-in text-center">
              <div className="text-6xl mb-4">🛑</div>
              <h2 className="text-2xl font-bold text-red-400 mb-2">{t.quotaMsg}</h2>
-             <button 
-                onClick={handleChangeKey}
-                className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-full transition-colors mt-4"
-            >
-                {t.changeKey}
-            </button>
         </div>
       )
   }

@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import { AlchemyElement, LoaderState } from '../types';
-import { combineAlchemyElements, removeApiKey, QuotaExceededError } from '../services/geminiService';
+import { AlchemyElement } from '../types';
+import { combineAlchemyElements } from '../services/geminiService';
 
 const getInitialLanguage = () => {
     if (typeof navigator !== 'undefined') {
@@ -47,8 +48,7 @@ const AlchemyGame: React.FC = () => {
       yourElements: isPt ? "Seus Elementos" : "Your Elements",
       reset: isPt ? "Resetar" : "Reset",
       resetConfirm: isPt ? "Reiniciar todo o progresso?" : "Reset all progress?",
-      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!",
-      changeKey: isPt ? "Trocar Chave API" : "Change API Key"
+      quotaMsg: isPt ? "Limite diário da API atingido!" : "Daily API quota exceeded!"
   };
 
   useEffect(() => {
@@ -103,11 +103,6 @@ const AlchemyGame: React.FC = () => {
     }
   }
 
-  const handleChangeKey = () => {
-      removeApiKey();
-      window.location.reload();
-  }
-
   return (
     <div className="flex flex-col h-full max-w-4xl mx-auto p-4 animate-fade-in">
       <div className="text-center mb-6">
@@ -131,12 +126,6 @@ const AlchemyGame: React.FC = () => {
              <div className="absolute inset-0 bg-slate-900/95 z-30 flex items-center justify-center flex-col p-6 text-center">
                 <div className="text-4xl mb-2">🛑</div>
                 <h3 className="text-red-400 font-bold text-xl mb-2">{t.quotaMsg}</h3>
-                <button 
-                    onClick={handleChangeKey}
-                    className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-full transition-colors"
-                >
-                    {t.changeKey}
-                </button>
             </div>
         )}
 

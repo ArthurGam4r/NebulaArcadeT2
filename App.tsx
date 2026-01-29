@@ -1,38 +1,16 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { GameType } from './types';
 import AlchemyGame from './components/AlchemyGame';
 import EmojiGame from './components/EmojiGame';
 import DilemmaGame from './components/DilemmaGame';
 import LadderGame from './components/LadderGame';
 import CipherGame from './components/CipherGame';
-import { hasApiKey, setApiKey, removeApiKey } from './services/geminiService';
+import ArenaGame from './components/ArenaGame';
 
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
-  const [apiKeySet, setApiKeySet] = useState<boolean>(false);
-  
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
-
-  useEffect(() => {
-    setApiKeySet(hasApiKey());
-  }, []);
-
-  const handleSetKey = (key: string) => {
-    if (key.trim().length > 10) {
-        setApiKey(key);
-        setApiKeySet(true);
-    }
-  };
-
-  const handleResetKey = () => {
-      // Direct reset without window.confirm if possible, or simple reload
-      removeApiKey();
-      window.location.reload();
-  };
-
-  if (!apiKeySet) {
-      return <SetupScreen onSave={handleSetKey} isPt={isPt} />;
-  }
 
   const renderGame = () => {
     switch (activeGame) {
@@ -46,6 +24,8 @@ const App: React.FC = () => {
         return <LadderGame />;
       case GameType.CIPHER:
         return <CipherGame />;
+      case GameType.ARENA:
+        return <ArenaGame />;
       default:
         return <HomeGrid onSelect={setActiveGame} />;
     }
@@ -88,13 +68,6 @@ const App: React.FC = () => {
       <footer className="py-6 border-t border-slate-800 text-center text-slate-500 text-xs relative z-10 bg-[#0f172a] flex flex-col gap-2 items-center">
         <p>Powered by Gemini API • {isPt ? 'Criado com React & Tailwind' : 'Built with React & Tailwind'}</p>
         <div className="flex gap-4">
-            <button 
-                onClick={handleResetKey}
-                className="text-slate-700 hover:text-red-400 underline cursor-pointer"
-            >
-                {isPt ? 'Trocar Chave API' : 'Change API Key'}
-            </button>
-            <span className="text-slate-700">|</span>
              <a href="https://ai.google.dev/pricing" target="_blank" rel="noreferrer" className="text-slate-700 hover:text-blue-400 underline">
                 {isPt ? 'Limites & Preços' : 'Limits & Pricing'}
             </a>
@@ -104,144 +77,132 @@ const App: React.FC = () => {
   );
 };
 
-// --- Setup Screen Component ---
-
-const SetupScreen: React.FC<{onSave: (k: string) => void, isPt: boolean}> = ({ onSave, isPt }) => {
-    const [input, setInput] = useState('');
-
-    return (
-        <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 font-sans">
-            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-slate-700">
-                <div className="text-center mb-6">
-                    <div className="text-4xl mb-2">🌌</div>
-                    <h1 className="text-2xl font-bold text-white">Nebula Arcade</h1>
-                    <p className="text-slate-400 text-sm mt-2">
-                        {isPt ? 'Configuração Inicial' : 'Initial Setup'}
-                    </p>
-                </div>
-
-                <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-lg mb-6">
-                    <h3 className="text-yellow-500 font-bold text-sm mb-1 uppercase tracking-wide">
-                        {isPt ? '⚠️ Atenção Streamers' : '⚠️ Streamer Warning'}
-                    </h3>
-                    <p className="text-yellow-200/80 text-xs leading-relaxed">
-                        {isPt 
-                         ? 'Se você estiver gravando, oculte esta tela. Sua chave API dá acesso à sua cota do Google Gemini.' 
-                         : 'If recording, hide this screen. Your API key provides access to your Google Gemini quota.'}
-                    </p>
-                </div>
-
-                <form onSubmit={(e) => { e.preventDefault(); onSave(input); }} className="space-y-4">
-                    <div>
-                        <label className="block text-slate-400 text-xs uppercase font-bold mb-2">
-                            Gemini API Key
-                        </label>
-                        <input 
-                            type="password" 
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            placeholder="AIzaSy..."
-                            className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                        />
-                    </div>
-                    
-                    <button 
-                        type="submit" 
-                        disabled={input.length < 10}
-                        className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-3 rounded-lg transition-all"
-                    >
-                        {isPt ? 'Salvar e Jogar' : 'Save & Play'}
-                    </button>
-                </form>
-
-                <p className="text-center mt-6 text-xs text-slate-500">
-                    {isPt ? 'A chave é salva apenas no seu navegador.' : 'Key is stored locally in your browser.'}
-                    <br/>
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline mt-1 inline-block">
-                        {isPt ? 'Obter chave gratuita aqui' : 'Get free key here'}
-                    </a>
-                </p>
-            </div>
-        </div>
-    )
-}
-
 interface HomeGridProps {
   onSelect: (game: GameType) => void;
 }
 
 const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
+  const [search, setSearch] = useState('');
   
+  const gamesList = useMemo(() => [
+    {
+        id: GameType.ALCHEMY,
+        title: isPt ? "Alquimia Neural" : "Neural Alchemy",
+        description: isPt ? "Combine elementos para criar o universo." : "Combine elements to create the universe.",
+        icon: "⚗️",
+        color: "from-blue-500 to-cyan-400",
+        tags: isPt ? ["Criatividade", "Alquimia", "Infinito"] : ["Creativity", "Alchemy", "Infinite"]
+    },
+    {
+        id: GameType.EMOJI,
+        title: isPt ? "Detetive de Emojis" : "Emoji Detective",
+        description: isPt ? "Adivinhe o filme baseado nos emojis." : "Guess the movie based on emojis.",
+        icon: "🕵️‍♂️",
+        color: "from-yellow-400 to-orange-500",
+        tags: isPt ? ["Quiz", "Filmes", "Cultura Pop"] : ["Quiz", "Movies", "Pop Culture"]
+    },
+    {
+        id: GameType.DILEMMA,
+        title: isPt ? "Dilema Absurdo" : "Absurd Dilemma",
+        description: isPt ? "Escolhas morais impossíveis e hilárias." : "Impossible and hilarious moral choices.",
+        icon: "⚖️",
+        color: "from-pink-500 to-rose-500",
+        tags: isPt ? ["Humor", "Social", "Moral"] : ["Humor", "Social", "Moral"]
+    },
+    {
+        id: GameType.LADDER,
+        title: isPt ? "Ponte Semântica" : "Semantic Bridge",
+        description: isPt ? "Conecte duas palavras distantes degrau por degrau." : "Connect two distant words step by step.",
+        icon: "🪜",
+        color: "from-amber-700 to-orange-800",
+        tags: isPt ? ["Lógica", "Palavras", "Bridge"] : ["Logic", "Words", "Bridge"]
+    },
+    {
+        id: GameType.CIPHER,
+        title: isPt ? "Decodificador" : "Cipher Decoder",
+        description: isPt ? "Descifre frases famosas bagunçadas pela IA." : "Decipher famous quotes messed up by AI.",
+        icon: "📟",
+        color: "from-green-600 to-emerald-600",
+        tags: isPt ? ["Mistério", "Lógica", "Ciber"] : ["Mystery", "Logic", "Cyber"],
+        isNew: true
+    },
+    {
+        id: GameType.ARENA,
+        title: isPt ? "Arena de Sobrevivência" : "Survival Arena",
+        description: isPt ? "Como você enfrentaria feras reais e mitológicas?" : "How would you face real and mythological beasts?",
+        icon: "👹",
+        color: "from-red-600 to-orange-600",
+        tags: isPt ? ["RPG", "Combate", "Estratégia"] : ["RPG", "Combat", "Strategy"],
+        isNew: true
+    }
+  ], [isPt]);
+
+  const filteredGames = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return gamesList;
+    return gamesList.filter(g => 
+        g.title.toLowerCase().includes(q) || 
+        g.tags?.some(t => t.toLowerCase().includes(q))
+    );
+  }, [search, gamesList]);
+
   const t = {
       heroTitle: isPt ? "Explore o Infinito" : "Explore the Infinite",
-      heroSub: isPt ? "Mini-games gerados por inteligência artificial. Cada jogada é única." : "AI-generated mini-games. Every playthrough is unique.",
-      alchemyTitle: isPt ? "Alquimia Neural" : "Neural Alchemy",
-      alchemyDesc: isPt ? "Combine elementos para criar o universo." : "Combine elements to create the universe.",
-      emojiTitle: isPt ? "Detetive de Emojis" : "Emoji Detective",
-      emojiDesc: isPt ? "Adivinhe o filme baseado nos emojis." : "Guess the movie based on emojis.",
-      dilemmaTitle: isPt ? "Dilema Absurdo" : "Absurd Dilemma",
-      dilemmaDesc: isPt ? "Escolhas morais impossíveis e hilárias." : "Impossible and hilarious moral choices.",
-      ladderTitle: isPt ? "Ponte Semântica" : "Semantic Bridge",
-      ladderDesc: isPt ? "Conecte duas palavras distantes degrau por degrau." : "Connect two distant words step by step.",
-      cipherTitle: isPt ? "Decodificador" : "Cipher Decoder",
-      cipherDesc: isPt ? "Descifre frases famosas bagunçadas pela IA." : "Decipher famous quotes messed up by AI.",
-      play: isPt ? "Jogar Agora" : "Play Now"
+      heroSub: isPt ? "Mini-games gerados por IA. Cada jogada é única." : "AI-generated mini-games. Every playthrough is unique.",
+      searchPlaceholder: isPt ? "Buscar jogo ou tag (ex: Lógica)..." : "Search game or tag (ex: Logic)...",
+      play: isPt ? "Jogar Agora" : "Play Now",
+      noResults: isPt ? "Nenhum jogo encontrado espacialmente..." : "No games found in this sector..."
   };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 animate-fade-in">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
             <h2 className="text-4xl md:text-6xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
                 {t.heroTitle}
             </h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-8">
                 {t.heroSub}
             </p>
+
+            <div className="relative max-w-xl mx-auto group">
+                <div className="absolute inset-0 bg-blue-500/20 blur-xl group-focus-within:bg-purple-500/30 transition-all duration-500"></div>
+                <div className="relative flex items-center">
+                    <span className="absolute left-4 text-slate-500">🔍</span>
+                    <input 
+                        type="text" 
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder={t.searchPlaceholder}
+                        className="w-full bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full py-4 pl-12 pr-6 text-white outline-none focus:border-indigo-500/50 transition-all shadow-xl"
+                    />
+                </div>
+            </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 justify-center">
-            <GameCard 
-                title={t.alchemyTitle}
-                description={t.alchemyDesc}
-                icon="⚗️"
-                color="from-blue-500 to-cyan-400"
-                playText={t.play}
-                onClick={() => onSelect(GameType.ALCHEMY)}
-            />
-            <GameCard 
-                title={t.emojiTitle}
-                description={t.emojiDesc}
-                icon="🕵️‍♂️"
-                color="from-yellow-400 to-orange-500"
-                playText={t.play}
-                onClick={() => onSelect(GameType.EMOJI)}
-            />
-            <GameCard 
-                title={t.dilemmaTitle}
-                description={t.dilemmaDesc}
-                icon="⚖️"
-                color="from-pink-500 to-rose-500"
-                playText={t.play}
-                onClick={() => onSelect(GameType.DILEMMA)}
-            />
-            <GameCard 
-                title={t.ladderTitle}
-                description={t.ladderDesc}
-                icon="🪜"
-                color="from-amber-700 to-orange-800"
-                playText={t.play}
-                onClick={() => onSelect(GameType.LADDER)}
-            />
-            <GameCard 
-                title={t.cipherTitle}
-                description={t.cipherDesc}
-                icon="📟"
-                color="from-green-600 to-emerald-600"
-                playText={t.play}
-                onClick={() => onSelect(GameType.CIPHER)}
-            />
-        </div>
+        {filteredGames.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredGames.map((game) => (
+                    <GameCard 
+                        key={game.id}
+                        title={game.title}
+                        description={game.description}
+                        icon={game.icon}
+                        color={game.color}
+                        tags={game.tags || []}
+                        isNew={game.isNew}
+                        playText={t.play}
+                        onClick={() => onSelect(game.id)}
+                    />
+                ))}
+            </div>
+        ) : (
+            <div className="text-center py-20 animate-pulse">
+                <span className="text-6xl mb-4 block">🛸</span>
+                <p className="text-slate-500 font-medium">{t.noResults}</p>
+                <button onClick={() => setSearch('')} className="mt-4 text-blue-400 hover:underline">Ver todos / See all</button>
+            </div>
+        )}
     </div>
   );
 };
@@ -251,11 +212,13 @@ interface GameCardProps {
     description: string;
     icon: string;
     color: string;
+    tags: string[];
+    isNew?: boolean;
     playText: string;
     onClick: () => void;
 }
 
-const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, playText, onClick }) => {
+const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, tags, isNew, playText, onClick }) => {
     return (
         <button 
             onClick={onClick}
@@ -263,6 +226,14 @@ const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, pl
         >
             <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-10 blur-2xl rounded-full transform translate-x-10 -translate-y-10 group-hover:opacity-20 transition-opacity`}></div>
             
+            {isNew && (
+                <div className="absolute top-4 right-4 animate-pulse">
+                    <span className="bg-gradient-to-r from-yellow-400 to-amber-600 text-[10px] font-black px-2 py-1 rounded shadow-lg shadow-amber-900/50 text-black uppercase tracking-tighter">
+                        Novo / New
+                    </span>
+                </div>
+            )}
+
             <div className="text-4xl mb-4 bg-slate-900 w-16 h-16 rounded-xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300">
                 {icon}
             </div>
@@ -271,9 +242,17 @@ const GameCard: React.FC<GameCardProps> = ({ title, description, icon, color, pl
                 {title}
             </h3>
             
-            <p className="text-slate-400 text-sm leading-relaxed mb-6 flex-1">
+            <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">
                 {description}
             </p>
+
+            <div className="flex flex-wrap gap-1.5 mb-6">
+                {tags.map(tag => (
+                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900/50 text-slate-500 border border-slate-700 group-hover:border-slate-600 group-hover:text-slate-300 transition-colors">
+                        #{tag}
+                    </span>
+                ))}
+            </div>
 
             <div className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-white transition-colors mt-auto">
                 {playText} <span className="ml-2">→</span>
