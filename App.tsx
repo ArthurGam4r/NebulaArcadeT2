@@ -16,14 +16,16 @@ const App: React.FC = () => {
   
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
 
-  // Robust detection for AI Studio platform seletor
+  // Ultra-robust detection for AI Studio platform selector
   const getAiStudio = () => {
       try {
-          // Check current window, then parent (for iframes), then top
-          return (window as any).aistudio || 
-                 (window.parent as any)?.aistudio || 
-                 (window.top as any)?.aistudio;
+          // Check current window, then parent, then top to cover all iframe nesting scenarios
+          const found = (window as any).aistudio || 
+                        (window.parent as any)?.aistudio || 
+                        (window.top as any)?.aistudio;
+          return found;
       } catch (e) {
+          // Fallback if cross-origin policy prevents parent/top access
           return (window as any).aistudio;
       }
   };
@@ -32,14 +34,14 @@ const App: React.FC = () => {
     setIsChecking(true);
     setAuthError(null);
 
-    // 1. Check for Environment Variable (Automatic if set in Vercel/GitHub)
+    // 1. Check if Key is already injected (Automatic bypass)
     if (process.env.API_KEY && process.env.API_KEY.length > 5) {
       setIsAuthenticated(true);
       setIsChecking(false);
       return;
     }
 
-    // 2. Check for AI Studio platform selector
+    // 2. Check for AI Studio platform selector presence
     const aiStudio = getAiStudio();
     if (aiStudio) {
       try {
@@ -62,15 +64,15 @@ const App: React.FC = () => {
     if (aiStudio) {
       try {
         await aiStudio.openSelectKey();
-        // Assume success to unlock UI, as per platform best practices
+        // Assume success to proceed immediately
         setIsAuthenticated(true);
       } catch (e) {
-        setAuthError(isPt ? "Erro ao abrir o seletor. Tente novamente." : "Error opening selector. Try again.");
+        setAuthError(isPt ? "Ocorreu um erro ao abrir o seletor oficial." : "An error occurred opening the official selector.");
       }
     } else {
         setAuthError(isPt 
-            ? "O seletor de chaves não foi encontrado. Para este site funcionar fora do editor, você deve configurar a variável 'API_KEY' nas configurações do seu projeto (Vercel/GitHub)." 
-            : "Key selector not found. For this site to work outside the editor, set the 'API_KEY' variable in your project settings (Vercel/GitHub).");
+            ? "O seletor oficial do Google não foi detectado. Se você está tentando jogar fora do editor, por favor, configure a 'API_KEY' nas variáveis de ambiente do seu deploy." 
+            : "Google's official key selector was not detected. If playing outside the editor, please set 'API_KEY' in your environment variables.");
     }
   };
 
@@ -80,21 +82,19 @@ const App: React.FC = () => {
         <div className="flex flex-col items-center gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-indigo-400 text-xs font-bold uppercase tracking-widest animate-pulse">
-                {isPt ? "Carregando Nebula..." : "Loading Nebula..."}
+                {isPt ? "Iniciando Sistemas..." : "Booting Systems..."}
             </p>
         </div>
       </div>
     );
   }
 
-  // LOGIN SCREEN (Access Portal)
+  // LOGIN SCREEN
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        {/* Animated background stars/dust */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent opacity-40"></div>
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-600/10 blur-[100px] rounded-full animate-pulse"></div>
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-600/10 blur-[100px] rounded-full animate-pulse delay-700"></div>
+        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
 
         <div className="max-w-md w-full text-center relative z-10 space-y-10 animate-fade-in">
           <div className="flex flex-col items-center">
@@ -105,18 +105,18 @@ const App: React.FC = () => {
                 Nebula Arcade
               </h1>
               <p className="text-slate-400 text-lg">
-                {isPt ? "Mini-games infinitos movidos por IA." : "Infinite AI-powered mini-games."}
+                {isPt ? "Sua coleção infinita de diversão IA." : "Your infinite collection of AI fun."}
               </p>
           </div>
 
-          <div className="bg-slate-900/40 backdrop-blur-2xl border border-slate-800 p-8 rounded-3xl shadow-2xl space-y-6">
+          <div className="bg-slate-900/60 backdrop-blur-3xl border border-slate-800 p-8 rounded-3xl shadow-2xl space-y-6">
             <div className="space-y-3">
                 <p className="text-sm font-medium text-slate-300">
-                    {isPt ? "Acesse com sua conta Google / Gemini" : "Access with your Google / Gemini account"}
+                    {isPt ? "Acesse para liberar os jogos" : "Access to unlock all games"}
                 </p>
                 {authError && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400 leading-relaxed animate-shake">
-                        {authError}
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] text-red-400 leading-relaxed animate-shake text-left">
+                        <strong>Erro de Ambiente:</strong> {authError}
                     </div>
                 )}
             </div>
@@ -127,28 +127,23 @@ const App: React.FC = () => {
                   className="w-full bg-white text-black font-black py-4 px-8 rounded-2xl hover:bg-slate-200 transition-all transform active:scale-95 shadow-xl flex items-center justify-center gap-3 text-lg"
                 >
                   <span className="text-xl">✨</span>
-                  {isPt ? "Conectar com Gemini" : "Connect with Gemini"}
+                  {isPt ? "Conectar Gemini" : "Connect Gemini"}
                 </button>
                 
                 <button 
                   onClick={checkAuth}
                   className="w-full bg-slate-800/50 hover:bg-slate-800 text-slate-400 font-bold py-3 px-8 rounded-2xl border border-slate-700 transition-all text-sm"
                 >
-                  {isPt ? "Verificar Novamente" : "Check Again"}
+                  {isPt ? "Recarregar Conexão" : "Reload Connection"}
                 </button>
             </div>
           </div>
 
-          <div className="space-y-4 pt-4 border-t border-slate-800/50">
-            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
-                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-xs text-slate-500 hover:text-indigo-400 underline underline-offset-4">
-                    {isPt ? "Faturamento da API" : "API Billing"}
-                </a>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-xs text-slate-500 hover:text-indigo-400 underline underline-offset-4">
-                    {isPt ? "Obter Chave Grátis" : "Get Free Key"}
-                </a>
-            </div>
-          </div>
+          <p className="text-[10px] text-slate-600 leading-relaxed max-w-xs mx-auto">
+              {isPt 
+                ? "Por segurança, não pedimos sua chave diretamente. Use o seletor oficial ou configure a variável 'API_KEY' no seu servidor." 
+                : "For security, we don't ask for your key directly. Use the official selector or set the 'API_KEY' variable on your server."}
+          </p>
         </div>
       </div>
     );
@@ -184,7 +179,7 @@ const App: React.FC = () => {
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
-                    API ONLINE
+                    API ACTIVE
                 </div>
 
                 {activeGame !== GameType.NONE && (
@@ -192,7 +187,7 @@ const App: React.FC = () => {
                         onClick={() => setActiveGame(GameType.NONE)}
                         className="text-sm font-medium text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-3 py-1.5 rounded-md hover:bg-slate-700 border border-slate-700"
                     >
-                        ← {isPt ? 'Voltar' : 'Back'}
+                        ← {isPt ? 'Início' : 'Home'}
                     </button>
                 )}
             </div>
@@ -228,15 +223,15 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
         description: isPt ? "Combine elementos para criar o universo." : "Combine elements to create the universe.",
         icon: "⚗️",
         color: "from-blue-500 to-cyan-400",
-        tags: isPt ? ["Criatividade", "Alquimia", "Infinito"] : ["Creativity", "Alchemy", "Infinite"]
+        tags: isPt ? ["Criatividade", "Alquimia"] : ["Creativity", "Alchemy"]
     },
     {
         id: GameType.EMOJI,
         title: isPt ? "Detetive de Emojis" : "Emoji Detective",
-        description: isPt ? "Adivinhe o filme baseado nos emojis." : "Guess the movie based on emojis.",
+        description: isPt ? "Adivinhe a obra baseada nos emojis." : "Guess the work based on emojis.",
         icon: "🕵️‍♂️",
         color: "from-yellow-400 to-orange-500",
-        tags: isPt ? ["Quiz", "Filmes", "Cultura Pop"] : ["Quiz", "Movies", "Pop Culture"]
+        tags: isPt ? ["Quiz", "Cultura Pop"] : ["Quiz", "Pop Culture"]
     },
     {
         id: GameType.DILEMMA,
@@ -244,15 +239,15 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
         description: isPt ? "Escolhas morais impossíveis e hilárias." : "Impossible and hilarious moral choices.",
         icon: "⚖️",
         color: "from-pink-500 to-rose-500",
-        tags: isPt ? ["Humor", "Social", "Moral"] : ["Humor", "Social", "Moral"]
+        tags: isPt ? ["Humor", "Social"] : ["Humor", "Social"]
     },
     {
         id: GameType.LADDER,
         title: isPt ? "Ponte Semântica" : "Semantic Bridge",
-        description: isPt ? "Conecte duas palavras distantes degrau por degrau." : "Connect two distant words step by step.",
+        description: isPt ? "Conecte palavras distantes degrau por degrau." : "Connect distant words step by step.",
         icon: "🪜",
         color: "from-amber-700 to-orange-800",
-        tags: isPt ? ["Lógica", "Palavras", "Bridge"] : ["Logic", "Words", "Bridge"]
+        tags: isPt ? ["Lógica", "Palavras"] : ["Logic", "Words"]
     },
     {
         id: GameType.CIPHER,
@@ -260,16 +255,16 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
         description: isPt ? "Descifre frases famosas bagunçadas pela IA." : "Decipher famous quotes messed up by AI.",
         icon: "📟",
         color: "from-green-600 to-emerald-600",
-        tags: isPt ? ["Mistério", "Lógica", "Ciber"] : ["Mystery", "Logic", "Cyber"],
+        tags: isPt ? ["Mistério", "Cyber"] : ["Mystery", "Cyber"],
         isNew: true
     },
     {
         id: GameType.ARENA,
         title: isPt ? "Arena de Sobrevivência" : "Survival Arena",
-        description: isPt ? "Como você enfrentaria feras reais e mitológicas?" : "How would you face real and mythological beasts?",
+        description: isPt ? "Enfrente feras reais e mitológicas com estratégia." : "Face real and mythological beasts with strategy.",
         icon: "👹",
         color: "from-red-600 to-orange-600",
-        tags: isPt ? ["RPG", "Combate", "Estratégia"] : ["RPG", "Combat", "Strategy"],
+        tags: isPt ? ["RPG", "Estratégia"] : ["RPG", "Strategy"],
         isNew: true
     }
   ], [isPt]);
@@ -289,7 +284,6 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
             <h2 className="text-4xl md:text-6xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
                 {isPt ? "Explore o Infinito" : "Explore the Infinite"}
             </h2>
-            <p className="text-slate-500 mb-8">{isPt ? "Jogos gerados por inteligência artificial em tempo real." : "AI-powered games generated in real-time."}</p>
             <div className="relative max-w-xl mx-auto group">
                 <input 
                     type="text" 
@@ -328,10 +322,10 @@ const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
         >
             <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${game.color} opacity-5 blur-3xl`}></div>
             
-            {/* New Badge Restored */}
+            {/* New Badge restored and improved */}
             {game.isNew && (
                 <div className="absolute top-4 right-4 z-20">
-                    <span className="bg-gradient-to-r from-yellow-400 to-amber-600 text-[10px] font-black px-2 py-1 rounded shadow-lg shadow-amber-900/40 text-black uppercase tracking-tighter animate-pulse">
+                    <span className="bg-gradient-to-r from-yellow-400 to-amber-600 text-[10px] font-black px-2.5 py-1 rounded shadow-lg shadow-amber-900/40 text-black uppercase tracking-tighter animate-pulse">
                         Novo / New
                     </span>
                 </div>
