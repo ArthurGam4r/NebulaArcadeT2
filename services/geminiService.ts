@@ -2,13 +2,13 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, LadderValidation, LadderHint, CipherChallenge, ArenaChallenge, ArenaResult } from '../types';
 
-// Rule: Create a new GoogleGenAI instance right before making an API call to ensure it uses updated key.
+// Rule: Always recreate the AI instance to use the most current API key from the execution context.
 const getAI = () => {
   const key = process.env.API_KEY;
-  if (!key) {
+  if (!key || key === "") {
     throw new Error("API_KEY_MISSING");
   }
-  return new GoogleGenAI({ apiKey: key as string });
+  return new GoogleGenAI({ apiKey: key });
 };
 
 // --- Helpers ---
@@ -47,9 +47,7 @@ const retryWithBackoff = async <T>(
       const errorMessage = error.message?.toLowerCase() || '';
       const status = error.status || error.response?.status;
       
-      // If error message contains "Requested entity was not found.", reset selection state
-      if (errorMessage.includes("entity was not found")) {
-          // This would ideally trigger a re-auth, but here we just throw
+      if (errorMessage.includes("entity was not found") || errorMessage.includes("not found")) {
           throw new Error("API_KEY_INVALID");
       }
 
@@ -65,8 +63,7 @@ const retryWithBackoff = async <T>(
         status === 429 || 
         status === 503 ||
         errorMessage.includes('429') || 
-        errorMessage.includes('overloaded') ||
-        errorMessage.includes('not found');
+        errorMessage.includes('overloaded');
 
       if (isRetryable && i < retries - 1) {
         await new Promise(resolve => setTimeout(resolve, currentDelay));
@@ -79,34 +76,9 @@ const retryWithBackoff = async <T>(
   throw new Error("Max retries exceeded");
 };
 
-// --- Local Storage Caches ---
-
-const ALCHEMY_CACHE_KEY = 'alchemy_v2_cache';
-const LADDER_CACHE_KEY = 'ladder_val_cache_v3';
-
-const getCache = (key: string): Record<string, any> => {
-    if (typeof localStorage === 'undefined') return {};
-    try {
-        return JSON.parse(localStorage.getItem(key) || '{}');
-    } catch { return {}; }
-}
-
-const saveCache = (key: string, id: string, data: any) => {
-    if (typeof localStorage === 'undefined') return;
-    const cache = getCache(key);
-    cache[id] = data;
-    const keys = Object.keys(cache);
-    if (keys.length > 500) delete cache[keys[0]]; 
-    localStorage.setItem(key, JSON.stringify(cache));
-}
-
 // --- Games ---
 
 export const combineAlchemyElements = async (elem1: string, elem2: string): Promise<AlchemyElement | null> => {
-  const cacheKey = [elem1, elem2].sort().join('+').toLowerCase();
-  const cached = getCache(ALCHEMY_CACHE_KEY)[cacheKey];
-  if (cached) return { ...cached, id: Date.now().toString(), isNew: false };
-
   try {
     const ai = getAI();
     const lang = getLanguage();
@@ -116,12 +88,7 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     }));
-    if (response.text) {
-      const data = JSON.parse(cleanJson(response.text));
-      saveCache(ALCHEMY_CACHE_KEY, cacheKey, { name: data.name, emoji: data.emoji });
-      return { id: Date.now().toString(), name: data.name, emoji: data.emoji, isNew: true };
-    }
-    return null;
+    return response.text ? JSON.parse(cleanJson(response.text)) : null;
   } catch (error) { throw error; }
 };
 
@@ -129,8 +96,8 @@ export const generateEmojiChallengeBatch = async (exclude: string[] = []): Promi
   try {
     const ai = getAI();
     const lang = getLanguage();
-    const excludeList = exclude.slice(-15).join(','); 
-    const prompt = `List 5 distinct Blockbusters(Movie/Game). No:[${excludeList}]. Lang:${lang}. JSON Array:{answer,emojis,hints[5](hard->easy)}`;
+    const excludeList = exclude.join(','); 
+    const prompt = `List 5 distinct Movies/Games. No:[${excludeList}]. Lang:${lang}. JSON Array:{answer,emojis,hints[5]}`;
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -158,7 +125,7 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
   try {
     const ai = getAI();
     const lang = getLanguage();
-    const prompt = `2 nouns(Start/End) for WordLadder(5 steps). Lang:${lang}. JSON:{startWord,endWord,startEmoji,endEmoji}`;
+    const prompt = `2 nouns for WordLadder. Lang:${lang}. JSON:{startWord,endWord,startEmoji,endEmoji}`;
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -169,24 +136,16 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
 };
 
 export const validateLadderStep = async (current: string, target: string, guess: string): Promise<LadderValidation> => {
-    const cacheKey = `${current.toLowerCase()}_${target.toLowerCase()}_${guess.toLowerCase()}`;
-    const cached = getCache(LADDER_CACHE_KEY)[cacheKey];
-    if (cached) return cached;
     try {
         const ai = getAI();
         const lang = getLanguage();
-        const prompt = `Game: Word Ladder. Connect "${current}" to "${target}". Input: "${guess}". Lang:${lang}. JSON:{isValid,message,emoji,proximity(0-100)}`;
+        const prompt = `Word Ladder. Connect "${current}" to "${target}". Input: "${guess}". Lang:${lang}. JSON:{isValid,message,emoji,proximity(0-100)}`;
         const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
           model: 'gemini-3-pro-preview',
           contents: prompt,
           config: { responseMimeType: 'application/json' }
         }));
-        if (response.text) {
-            const data = JSON.parse(cleanJson(response.text));
-            saveCache(LADDER_CACHE_KEY, cacheKey, data);
-            return data;
-        }
-        return { isValid: false, message: "Error" };
+        return response.text ? JSON.parse(cleanJson(response.text)) : { isValid: false, message: "Error" };
     } catch (error) { throw error; }
 };
 
@@ -194,7 +153,7 @@ export const getLadderHint = async (current: string, target: string): Promise<La
   try {
       const ai = getAI();
       const lang = getLanguage();
-      const prompt = `WordLadder Hint: "${current}"->"${target}". One bridge word. Lang:${lang}. JSON:{word,reason}`;
+      const prompt = `WordLadder Hint: "${current}"->"${target}". JSON:{word,reason}`;
       const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -208,8 +167,7 @@ export const generateCipherChallengeBatch = async (exclude: string[] = []): Prom
   try {
       const ai = getAI();
       const lang = getLanguage();
-      const excludeList = exclude.slice(-15).join(',');
-      const prompt = `Gen 5 Cipher Games (Difficulty: Hard). Lang:${lang}. No:[${excludeList}]. JSON Array:{original,encrypted,rule,category}`;
+      const prompt = `5 Cipher Games. Lang:${lang}. JSON Array:{original,encrypted,rule,category}`;
       const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -223,10 +181,7 @@ export const generateArenaChallenge = async (): Promise<ArenaChallenge | null> =
   try {
     const ai = getAI();
     const lang = getLanguage();
-    const prompt = `Generate a creature for a survival game. 
-    REALISM FOCUS: 85% chance for a REAL ANIMAL (Jaguar, Hippo, Bull Shark, Black Mamba, Siberian Tiger, Moose, Elephant). 15% chance for a Mythological beast.
-    Lang:${lang}. JSON:{creature,emoji,description,difficulty}`;
-
+    const prompt = `Gen survival creature. 85% real animal, 15% myth. Lang:${lang}. JSON:{creature,emoji,description,difficulty}`;
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -240,7 +195,9 @@ export const evaluateCombatStrategy = async (creature: string, strategy: string)
   try {
     const ai = getAI();
     const lang = getLanguage();
-    const prompt = `ARENA MASTER ANALYST (SURVIVAL GENIUS MODE). Adversary: "${creature}". Player Plan: "${strategy}". FAIRNESS: If logical tools/env used, success is true. Lang: ${lang}. JSON:{success,commentary,survivalChance,damageDealt}`;
+    const prompt = `SURVIVAL ANALYST. Adversary: "${creature}". Strategy: "${strategy}". 
+    MANDATORY RULE: If player uses TOOLS, ENVIRONMENT, FIRE, or any LOGIC (height, distance, stealth), SUCCESS IS TRUE. Humans are smarter than beasts.
+    Lang: ${lang}. JSON:{success,commentary,survivalChance,damageDealt}`;
 
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-pro-preview',
