@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { GameType } from './types';
 import AlchemyGame from './components/AlchemyGame';
 import EmojiGame from './components/EmojiGame';
@@ -8,12 +8,47 @@ import LadderGame from './components/LadderGame';
 import CipherGame from './components/CipherGame';
 import ArenaGame from './components/ArenaGame';
 
+// Fix: Use the globally defined AIStudio type to prevent declaration conflicts and match environment types
+declare global {
+  interface Window {
+    aistudio: AIStudio;
+  }
+}
+
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
   const [showApiHelp, setShowApiHelp] = useState(false);
+  const [apiStatus, setApiStatus] = useState<boolean>(!!process.env.API_KEY);
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
-  
-  const hasApiKey = !!process.env.API_KEY;
+
+  // Sync API status
+  useEffect(() => {
+      const checkKey = async () => {
+          if (process.env.API_KEY) {
+              setApiStatus(true);
+          } else if (window.aistudio) {
+              const selected = await window.aistudio.hasSelectedApiKey();
+              setApiStatus(selected);
+          }
+      };
+      checkKey();
+  }, []);
+
+  const handleApiAction = async () => {
+      if (!apiStatus && window.aistudio) {
+          try {
+              await window.aistudio.openSelectKey();
+              // After triggering the key selection, we proceed as if successful
+              setApiStatus(true);
+              setShowApiHelp(false);
+          } catch (e) {
+              console.error("Erro ao selecionar chave:", e);
+              setShowApiHelp(true);
+          }
+      } else if (!apiStatus) {
+          setShowApiHelp(!showApiHelp);
+      }
+  };
 
   const renderGame = () => {
     switch (activeGame) {
@@ -43,15 +78,15 @@ const App: React.FC = () => {
             
             <div className="flex items-center gap-4">
                 <button 
-                    onClick={() => setShowApiHelp(!showApiHelp)}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${
-                        hasApiKey 
+                    onClick={handleApiAction}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-105 active:scale-95 ${
+                        apiStatus 
                         ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
                         : 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse'
                     }`}
                 >
-                    <span className={`w-2 h-2 rounded-full ${hasApiKey ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></span>
-                    {hasApiKey ? 'API OK' : (isPt ? 'API Ausente' : 'API Missing')}
+                    <span className={`w-2 h-2 rounded-full ${apiStatus ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></span>
+                    {apiStatus ? 'API OK' : (isPt ? 'Configurar Chave' : 'Setup API Key')}
                 </button>
 
                 {activeGame !== GameType.NONE && (
@@ -66,13 +101,18 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {showApiHelp && !hasApiKey && (
-          <div className="bg-red-950/30 border-b border-red-900/50 p-4 text-center animate-fade-in relative z-40">
-              <p className="text-sm text-red-200">
-                  {isPt 
-                    ? "⚠️ A IA não está respondendo? Você precisa configurar a API_KEY nas variáveis de ambiente do seu projeto (Vercel/GitHub)." 
-                    : "⚠️ AI not responding? You need to configure API_KEY in your project's environment variables (Vercel/GitHub)."}
-              </p>
+      {showApiHelp && !apiStatus && (
+          <div className="bg-red-950/40 border-b border-red-800/50 p-6 text-center animate-fade-in relative z-40">
+              <div className="max-w-2xl mx-auto flex flex-col items-center gap-4">
+                  <p className="text-sm text-red-200 leading-relaxed">
+                      {isPt 
+                        ? "⚠️ A IA não está respondendo. Para funcionar no Vercel/GitHub, você deve configurar a API_KEY nas 'Environment Variables' do projeto. Se estiver no Preview, clique no botão superior para selecionar sua chave." 
+                        : "⚠️ AI not responding. To work on Vercel/GitHub, configure API_KEY in project 'Environment Variables'. If in Preview, click the top button to select your key."}
+                  </p>
+                  <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-xs text-red-400 hover:underline">
+                      {isPt ? "Saiba mais sobre limites e faturamento" : "Learn more about limits and billing"}
+                  </a>
+              </div>
           </div>
       )}
 

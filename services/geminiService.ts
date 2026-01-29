@@ -5,9 +5,8 @@ import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, Ladde
 // --- API Key Management ---
 const getAI = () => {
   const key = process.env.API_KEY;
-  if (!key) {
-    throw new Error("API_KEY_MISSING");
-  }
+  // If not in process.env, the connection might still work if selected via window.aistudio
+  // and injected by the platform.
   return new GoogleGenAI({ apiKey: key as string });
 };
 
@@ -42,8 +41,6 @@ const retryWithBackoff = async <T>(
     try {
       return await operation();
     } catch (error: any) {
-      if (error.message === 'API_KEY_MISSING') throw error;
-
       const errorMessage = error.message?.toLowerCase() || '';
       const status = error.status || error.response?.status;
       
@@ -59,7 +56,8 @@ const retryWithBackoff = async <T>(
         status === 429 || 
         status === 503 ||
         errorMessage.includes('429') || 
-        errorMessage.includes('overloaded');
+        errorMessage.includes('overloaded') ||
+        errorMessage.includes('not found'); // Handle race conditions in key selection
 
       if (isRetryable && i < retries - 1) {
         await new Promise(resolve => setTimeout(resolve, currentDelay));
@@ -212,15 +210,14 @@ export const generateCipherChallengeBatch = async (exclude: string[] = []): Prom
   } catch (error) { throw error; }
 }
 
-// --- ARENA GAME (MAX REALISM & BALANCED) ---
+// --- ARENA GAME (PLAYER-FRIENDLY & REALISTIC) ---
 
 export const generateArenaChallenge = async (): Promise<ArenaChallenge | null> => {
   try {
     const ai = getAI();
     const lang = getLanguage();
     const prompt = `Generate a creature for a survival game. 
-    REALISM FOCUS: 85% chance for a REAL ANIMAL (Lion, Elephant, Hippo, King Cobra, Komodo Dragon, Polar Bear, Great White Shark). 15% chance for Mythology.
-    Difficulty range: Easy to Hard.
+    REALISM FOCUS: 85% chance for a REAL ANIMAL (Jaguar, Hippo, Bull Shark, Black Mamba, Siberian Tiger, Moose, Elephant). 15% chance for a Mythological beast.
     Lang:${lang}. JSON:{creature,emoji,description,difficulty}`;
 
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
@@ -236,15 +233,16 @@ export const evaluateCombatStrategy = async (creature: string, strategy: string)
   try {
     const ai = getAI();
     const lang = getLanguage();
-    const prompt = `ARENA MASTER ANALYST.
+    const prompt = `ARENA MASTER ANALYST (SURVIVAL GENIUS MODE).
     Adversary: "${creature}".
-    Player Strategy: "${strategy}".
+    Player Plan: "${strategy}".
     
-    CRITICAL FAIRNESS INSTRUCTIONS:
-    1. If the player uses a logical survival move (climbing, fire, water, traps, tools, noise, intimidation), they MUST survive.
-    2. Real animals (85% of cases) should act like animals. They are afraid of fire, loud noises, and being hurt.
-    3. Humans are apex predators because of intelligence. If the player is smart, give them the win.
-    4. Commentary should be cinematic and explain WHY they won or lost.
+    FAIRNESS & DIFFICULTY RULES:
+    1. If the player uses tools, environment (climbing, water), fire, distractions, or logic, they MUST survive (success: true).
+    2. Real animals are biological: they flee from pain, fire, and loud noises.
+    3. Humans win through BRAINS. If the player's description is creative, reward them with victory.
+    4. Only fail the player if they do something intentionally suicidal (e.g., "I wait for it to eat me").
+    5. The goal is CINEMATIC SURVIVAL.
     
     Lang: ${lang}.
     JSON:{success,commentary,survivalChance,damageDealt}`;
