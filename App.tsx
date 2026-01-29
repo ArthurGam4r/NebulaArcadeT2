@@ -34,7 +34,7 @@ const App: React.FC = () => {
     setIsChecking(true);
     setAuthError(null);
 
-    // 1. Check if Key is already injected (Automatic bypass)
+    // 1. Check if Key is already injected (Automatic bypass for production)
     if (process.env.API_KEY && process.env.API_KEY.length > 5) {
       setIsAuthenticated(true);
       setIsChecking(false);
@@ -64,15 +64,15 @@ const App: React.FC = () => {
     if (aiStudio) {
       try {
         await aiStudio.openSelectKey();
-        // Assume success to proceed immediately
+        // Assume success to proceed immediately as per platform rules
         setIsAuthenticated(true);
       } catch (e) {
         setAuthError(isPt ? "Ocorreu um erro ao abrir o seletor oficial." : "An error occurred opening the official selector.");
       }
     } else {
         setAuthError(isPt 
-            ? "O seletor oficial do Google não foi detectado. Se você está tentando jogar fora do editor, por favor, configure a 'API_KEY' nas variáveis de ambiente do seu deploy." 
-            : "Google's official key selector was not detected. If playing outside the editor, please set 'API_KEY' in your environment variables.");
+            ? "O seletor oficial não foi detectado. Para permitir que jogadores acessem o site, configure a 'API_KEY' nas variáveis de ambiente do seu projeto." 
+            : "Official selector not detected. To allow players to access, set 'API_KEY' in your project environment variables.");
     }
   };
 
@@ -82,7 +82,7 @@ const App: React.FC = () => {
         <div className="flex flex-col items-center gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-indigo-400 text-xs font-bold uppercase tracking-widest animate-pulse">
-                {isPt ? "Iniciando Sistemas..." : "Booting Systems..."}
+                {isPt ? "Sincronizando..." : "Synchronizing..."}
             </p>
         </div>
       </div>
@@ -105,18 +105,18 @@ const App: React.FC = () => {
                 Nebula Arcade
               </h1>
               <p className="text-slate-400 text-lg">
-                {isPt ? "Sua coleção infinita de diversão IA." : "Your infinite collection of AI fun."}
+                {isPt ? "Diversão infinita movida por IA." : "Infinite AI-powered fun."}
               </p>
           </div>
 
           <div className="bg-slate-900/60 backdrop-blur-3xl border border-slate-800 p-8 rounded-3xl shadow-2xl space-y-6">
             <div className="space-y-3">
                 <p className="text-sm font-medium text-slate-300">
-                    {isPt ? "Acesse para liberar os jogos" : "Access to unlock all games"}
+                    {isPt ? "Conecte-se para liberar o acesso" : "Connect to unlock access"}
                 </p>
                 {authError && (
                     <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] text-red-400 leading-relaxed animate-shake text-left">
-                        <strong>Erro de Ambiente:</strong> {authError}
+                        <strong>Erro de Conexão:</strong> {authError}
                     </div>
                 )}
             </div>
@@ -127,22 +127,22 @@ const App: React.FC = () => {
                   className="w-full bg-white text-black font-black py-4 px-8 rounded-2xl hover:bg-slate-200 transition-all transform active:scale-95 shadow-xl flex items-center justify-center gap-3 text-lg"
                 >
                   <span className="text-xl">✨</span>
-                  {isPt ? "Conectar Gemini" : "Connect Gemini"}
+                  {isPt ? "Acessar com Gemini" : "Access with Gemini"}
                 </button>
                 
                 <button 
                   onClick={checkAuth}
                   className="w-full bg-slate-800/50 hover:bg-slate-800 text-slate-400 font-bold py-3 px-8 rounded-2xl border border-slate-700 transition-all text-sm"
                 >
-                  {isPt ? "Recarregar Conexão" : "Reload Connection"}
+                  {isPt ? "Tentar Novamente" : "Try Again"}
                 </button>
             </div>
           </div>
 
           <p className="text-[10px] text-slate-600 leading-relaxed max-w-xs mx-auto">
               {isPt 
-                ? "Por segurança, não pedimos sua chave diretamente. Use o seletor oficial ou configure a variável 'API_KEY' no seu servidor." 
-                : "For security, we don't ask for your key directly. Use the official selector or set the 'API_KEY' variable on your server."}
+                ? "Este arcade requer uma conexão com a API Gemini para gerar conteúdos em tempo real." 
+                : "This arcade requires a Gemini API connection to generate content in real-time."}
           </p>
         </div>
       </div>
@@ -179,7 +179,7 @@ const App: React.FC = () => {
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
-                    API ACTIVE
+                    API ATIVA
                 </div>
 
                 {activeGame !== GameType.NONE && (
@@ -187,7 +187,7 @@ const App: React.FC = () => {
                         onClick={() => setActiveGame(GameType.NONE)}
                         className="text-sm font-medium text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-3 py-1.5 rounded-md hover:bg-slate-700 border border-slate-700"
                     >
-                        ← {isPt ? 'Início' : 'Home'}
+                        ← {isPt ? 'Voltar' : 'Back'}
                     </button>
                 )}
             </div>
@@ -322,10 +322,10 @@ const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
         >
             <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${game.color} opacity-5 blur-3xl`}></div>
             
-            {/* New Badge restored and improved */}
+            {/* NOVO / NEW BADGE - RESTORED & IMPROVED */}
             {game.isNew && (
                 <div className="absolute top-4 right-4 z-20">
-                    <span className="bg-gradient-to-r from-yellow-400 to-amber-600 text-[10px] font-black px-2.5 py-1 rounded shadow-lg shadow-amber-900/40 text-black uppercase tracking-tighter animate-pulse">
+                    <span className="bg-gradient-to-r from-yellow-400 to-amber-600 text-[10px] font-black px-2.5 py-1 rounded shadow-lg shadow-amber-900/40 text-black uppercase tracking-tighter animate-pulse border border-yellow-300/50">
                         Novo / New
                     </span>
                 </div>
