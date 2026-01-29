@@ -14,20 +14,13 @@ const App: React.FC = () => {
 
   const renderGame = () => {
     switch (activeGame) {
-      case GameType.ALCHEMY:
-        return <AlchemyGame />;
-      case GameType.EMOJI:
-        return <EmojiGame />;
-      case GameType.DILEMMA:
-        return <DilemmaGame />;
-      case GameType.LADDER:
-        return <LadderGame />;
-      case GameType.CIPHER:
-        return <CipherGame />;
-      case GameType.ARENA:
-        return <ArenaGame />;
-      default:
-        return <HomeGrid onSelect={setActiveGame} />;
+      case GameType.ALCHEMY: return <AlchemyGame />;
+      case GameType.EMOJI: return <EmojiGame />;
+      case GameType.DILEMMA: return <DilemmaGame />;
+      case GameType.LADDER: return <LadderGame />;
+      case GameType.CIPHER: return <CipherGame />;
+      case GameType.ARENA: return <ArenaGame />;
+      default: return <HomeGrid onSelect={setActiveGame} />;
     }
   };
 
@@ -138,19 +131,25 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
     }
   ], [isPt]);
 
+  const allTags = useMemo(() => {
+    const tagsSet = new Set<string>();
+    gamesList.forEach(g => g.tags.forEach(t => tagsSet.add(t)));
+    return Array.from(tagsSet);
+  }, [gamesList]);
+
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase();
     if (!q) return gamesList;
     return gamesList.filter(g => 
         g.title.toLowerCase().includes(q) || 
-        g.tags?.some(t => t.toLowerCase().includes(q))
+        g.tags.some(t => t.toLowerCase().includes(q))
     );
   }, [search, gamesList]);
 
   const t = {
       heroTitle: isPt ? "Explore o Infinito" : "Explore the Infinite",
       heroSub: isPt ? "Mini-games gerados por IA. Cada jogada é única." : "AI-generated mini-games. Every playthrough is unique.",
-      searchPlaceholder: isPt ? "Buscar jogo ou tag (ex: Lógica)..." : "Search game or tag (ex: Logic)...",
+      searchPlaceholder: isPt ? "Buscar jogo ou tag..." : "Search game or tag...",
       play: isPt ? "Jogar Agora" : "Play Now",
       noResults: isPt ? "Nenhum jogo encontrado espacialmente..." : "No games found in this sector..."
   };
@@ -166,16 +165,34 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
             </p>
 
             <div className="relative max-w-xl mx-auto group">
-                <div className="absolute inset-0 bg-blue-500/20 blur-xl group-focus-within:bg-purple-500/30 transition-all duration-500"></div>
-                <div className="relative flex items-center">
-                    <span className="absolute left-4 text-slate-500">🔍</span>
-                    <input 
-                        type="text" 
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder={t.searchPlaceholder}
-                        className="w-full bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full py-4 pl-12 pr-6 text-white outline-none focus:border-indigo-500/50 transition-all shadow-xl"
-                    />
+                <div className="absolute inset-0 bg-blue-500/10 blur-xl group-focus-within:bg-purple-500/20 transition-all duration-500"></div>
+                <div className="relative flex flex-col gap-4">
+                    <div className="flex items-center">
+                        <span className="absolute left-4 text-slate-500">🔍</span>
+                        <input 
+                            type="text" 
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder={t.searchPlaceholder}
+                            className="w-full bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full py-4 pl-12 pr-6 text-white outline-none focus:border-indigo-500/50 transition-all shadow-xl"
+                        />
+                    </div>
+                    
+                    <div className="flex flex-wrap justify-center gap-2">
+                        {allTags.map(tag => (
+                            <button
+                                key={tag}
+                                onClick={() => setSearch(search === tag ? '' : tag)}
+                                className={`text-[10px] px-3 py-1 rounded-full border transition-all ${
+                                    search.toLowerCase() === tag.toLowerCase() 
+                                    ? 'bg-indigo-600 border-indigo-400 text-white' 
+                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                                }`}
+                            >
+                                #{tag}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>
@@ -189,7 +206,7 @@ const HomeGrid: React.FC<HomeGridProps> = ({ onSelect }) => {
                         description={game.description}
                         icon={game.icon}
                         color={game.color}
-                        tags={game.tags || []}
+                        tags={game.tags}
                         isNew={game.isNew}
                         playText={t.play}
                         onClick={() => onSelect(game.id)}
