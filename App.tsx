@@ -10,7 +10,10 @@ import ArenaGame from './components/ArenaGame';
 
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
+  const [showApiHelp, setShowApiHelp] = useState(false);
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
+  
+  const hasApiKey = !!process.env.API_KEY;
 
   const renderGame = () => {
     switch (activeGame) {
@@ -39,10 +42,22 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-4">
+                <button 
+                    onClick={() => setShowApiHelp(!showApiHelp)}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                        hasApiKey 
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                        : 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse'
+                    }`}
+                >
+                    <span className={`w-2 h-2 rounded-full ${hasApiKey ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></span>
+                    {hasApiKey ? 'API OK' : (isPt ? 'API Ausente' : 'API Missing')}
+                </button>
+
                 {activeGame !== GameType.NONE && (
                     <button 
                         onClick={() => setActiveGame(GameType.NONE)}
-                        className="text-sm font-medium text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-3 py-1.5 rounded-md hover:bg-slate-700"
+                        className="text-sm font-medium text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-3 py-1.5 rounded-md hover:bg-slate-700 border border-slate-700"
                     >
                         ← {isPt ? 'Voltar' : 'Back'}
                     </button>
@@ -50,6 +65,16 @@ const App: React.FC = () => {
             </div>
         </div>
       </header>
+
+      {showApiHelp && !hasApiKey && (
+          <div className="bg-red-950/30 border-b border-red-900/50 p-4 text-center animate-fade-in relative z-40">
+              <p className="text-sm text-red-200">
+                  {isPt 
+                    ? "⚠️ A IA não está respondendo? Você precisa configurar a API_KEY nas variáveis de ambiente do seu projeto (Vercel/GitHub)." 
+                    : "⚠️ AI not responding? You need to configure API_KEY in your project's environment variables (Vercel/GitHub)."}
+              </p>
+          </div>
+      )}
 
       <main className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>

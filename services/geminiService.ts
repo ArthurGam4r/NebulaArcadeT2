@@ -6,7 +6,7 @@ import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, Ladde
 const getAI = () => {
   const key = process.env.API_KEY;
   if (!key) {
-    console.error("API_KEY not found in environment variables.");
+    throw new Error("API_KEY_MISSING");
   }
   return new GoogleGenAI({ apiKey: key as string });
 };
@@ -42,6 +42,8 @@ const retryWithBackoff = async <T>(
     try {
       return await operation();
     } catch (error: any) {
+      if (error.message === 'API_KEY_MISSING') throw error;
+
       const errorMessage = error.message?.toLowerCase() || '';
       const status = error.status || error.response?.status;
       
@@ -102,13 +104,11 @@ export const combineAlchemyElements = async (elem1: string, elem2: string): Prom
     const ai = getAI();
     const lang = getLanguage();
     const prompt = `InfiniteCraft. Combine "${elem1}"+"${elem2}". Lang:${lang}. Out:1 noun(Real/PopCulture). JSON:{name,emoji}`;
-    // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     }));
-    // Fix: Use response.text directly (property, not a method)
     if (response.text) {
       const data = JSON.parse(cleanJson(response.text));
       saveCache(ALCHEMY_CACHE_KEY, cacheKey, { name: data.name, emoji: data.emoji });
@@ -124,13 +124,11 @@ export const generateEmojiChallengeBatch = async (exclude: string[] = []): Promi
     const lang = getLanguage();
     const excludeList = exclude.slice(-15).join(','); 
     const prompt = `List 5 distinct Blockbusters(Movie/Game). No:[${excludeList}]. Lang:${lang}. JSON Array:{answer,emojis,hints[5](hard->easy)}`;
-    // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     }));
-    // Fix: Use response.text directly (property, not a method)
     return response.text ? JSON.parse(cleanJson(response.text)) : [];
   } catch (error) { throw error; }
 };
@@ -140,13 +138,11 @@ export const generateDilemmaBatch = async (): Promise<DilemmaScenario[]> => {
     const ai = getAI();
     const lang = getLanguage();
     const prompt = `5 funny "Would You Rather". Lang:${lang}. JSON Array:{title,description,optionA,optionB,consequenceA,consequenceB}`;
-    // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     }));
-    // Fix: Use response.text directly (property, not a method)
     return response.text ? JSON.parse(cleanJson(response.text)) : [];
   } catch (error) { throw error; }
 };
@@ -156,13 +152,11 @@ export const generateLadderChallenge = async (): Promise<LadderChallenge | null>
     const ai = getAI();
     const lang = getLanguage();
     const prompt = `2 nouns(Start/End) for WordLadder(5 steps). Lang:${lang}. JSON:{startWord,endWord,startEmoji,endEmoji}`;
-    // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     }));
-    // Fix: Use response.text directly (property, not a method)
     return response.text ? JSON.parse(cleanJson(response.text)) : null;
   } catch (error) { throw error; }
 };
@@ -175,13 +169,11 @@ export const validateLadderStep = async (current: string, target: string, guess:
         const ai = getAI();
         const lang = getLanguage();
         const prompt = `Game: Word Ladder. Connect "${current}" to "${target}". Input: "${guess}". Lang:${lang}. JSON:{isValid,message,emoji,proximity(0-100)}`;
-        // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
         const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
           model: 'gemini-3-pro-preview',
           contents: prompt,
           config: { responseMimeType: 'application/json' }
         }));
-        // Fix: Use response.text directly (property, not a method)
         if (response.text) {
             const data = JSON.parse(cleanJson(response.text));
             saveCache(LADDER_CACHE_KEY, cacheKey, data);
@@ -196,13 +188,11 @@ export const getLadderHint = async (current: string, target: string): Promise<La
       const ai = getAI();
       const lang = getLanguage();
       const prompt = `WordLadder Hint: "${current}"->"${target}". One bridge word. Lang:${lang}. JSON:{word,reason}`;
-      // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
       const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       }));
-      // Fix: Use response.text directly (property, not a method)
       return response.text ? JSON.parse(cleanJson(response.text)) : null;
   } catch (error) { throw error; }
 };
@@ -213,35 +203,31 @@ export const generateCipherChallengeBatch = async (exclude: string[] = []): Prom
       const lang = getLanguage();
       const excludeList = exclude.slice(-15).join(',');
       const prompt = `Gen 5 Cipher Games (Difficulty: Hard). Lang:${lang}. No:[${excludeList}]. JSON Array:{original,encrypted,rule,category}`;
-      // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
       const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       }));
-      // Fix: Use response.text directly (property, not a method)
       return response.text ? JSON.parse(cleanJson(response.text)) : [];
   } catch (error) { throw error; }
 }
 
-// --- ARENA GAME (BALANCED & REALISTIC) ---
+// --- ARENA GAME (MAX REALISM & BALANCED) ---
 
 export const generateArenaChallenge = async (): Promise<ArenaChallenge | null> => {
   try {
     const ai = getAI();
     const lang = getLanguage();
     const prompt = `Generate a creature for a survival game. 
-    REALISM FOCUS: 70% chance to generate a real animal (predator, insect, mammal, dinosaur). 30% chance for mythological/fictional.
-    Avoid invincible gods. Include animals like 'Grizzly Bear', 'Giant Centipede', 'T-Rex', 'Hippo', 'Silverback Gorilla'.
+    REALISM FOCUS: 85% chance for a REAL ANIMAL (Lion, Elephant, Hippo, King Cobra, Komodo Dragon, Polar Bear, Great White Shark). 15% chance for Mythology.
+    Difficulty range: Easy to Hard.
     Lang:${lang}. JSON:{creature,emoji,description,difficulty}`;
 
-    // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     }));
-    // Fix: Use response.text directly (property, not a method)
     return response.text ? JSON.parse(cleanJson(response.text)) : null;
   } catch (error) { throw error; }
 };
@@ -250,26 +236,24 @@ export const evaluateCombatStrategy = async (creature: string, strategy: string)
   try {
     const ai = getAI();
     const lang = getLanguage();
-    const prompt = `SURVIVAL ARENA ANALYST (FAIR & REWARDING).
-    Creature: "${creature}".
+    const prompt = `ARENA MASTER ANALYST.
+    Adversary: "${creature}".
     Player Strategy: "${strategy}".
     
-    FAIRNESS RULES:
-    1. Humans are clever. If they use fire, height, distractions, or tools, survival chance MUST be > 80%.
-    2. Real animals have biological fears (noise, bright light, pain).
-    3. Even against a T-Rex, a clever strategy (hiding, using a trap) should succeed.
-    4. Only fail the player if the strategy is truly suicidal (e.g., "I punch the Lion").
+    CRITICAL FAIRNESS INSTRUCTIONS:
+    1. If the player uses a logical survival move (climbing, fire, water, traps, tools, noise, intimidation), they MUST survive.
+    2. Real animals (85% of cases) should act like animals. They are afraid of fire, loud noises, and being hurt.
+    3. Humans are apex predators because of intelligence. If the player is smart, give them the win.
+    4. Commentary should be cinematic and explain WHY they won or lost.
     
     Lang: ${lang}.
     JSON:{success,commentary,survivalChance,damageDealt}`;
 
-    // Fix: Added GenerateContentResponse type to retryWithBackoff to ensure response is correctly typed
     const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     }));
-    // Fix: Use response.text directly (property, not a method)
     return response.text ? JSON.parse(cleanJson(response.text)) : null;
   } catch (error) { throw error; }
 };
