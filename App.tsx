@@ -10,8 +10,20 @@ import ArenaGame from './components/ArenaGame';
 
 const App: React.FC = () => {
   const [activeGame, setActiveGame] = useState<GameType>(GameType.NONE);
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('nebula_api_key') || '');
   
   const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
+
+  const saveKey = (key: string) => {
+    localStorage.setItem('nebula_api_key', key);
+    setApiKey(key);
+    setShowKeyInput(false);
+    // Reload to ensure all services use the new key
+    window.location.reload();
+  };
+
+  const hasKey = !!(process.env.GEMINI_API_KEY || process.env.API_KEY || apiKey);
 
   // ARCADE MAIN UI
   const renderGame = () => {
@@ -30,7 +42,8 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#0f172a] text-slate-100 flex flex-col">
       <header className="sticky top-0 z-50 backdrop-blur-md bg-[#0f172a]/80 border-b border-slate-800">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div 
+          {/* Header Content */}
+          <div 
                 className="flex items-center gap-2 cursor-pointer group"
                 onClick={() => setActiveGame(GameType.NONE)}
             >
@@ -41,6 +54,14 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-4">
+                <button 
+                    onClick={() => setShowKeyInput(!showKeyInput)}
+                    className={`p-2 rounded-full transition-colors ${hasKey ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10 animate-pulse'}`}
+                    title={isPt ? "Configurar API Key" : "Configure API Key"}
+                >
+                    <span className="text-xl">🔑</span>
+                </button>
+
                 {activeGame !== GameType.NONE && (
                     <button 
                         onClick={() => setActiveGame(GameType.NONE)}
@@ -51,11 +72,64 @@ const App: React.FC = () => {
                 )}
             </div>
         </div>
+
+        {/* API KEY PANEL */}
+        {showKeyInput && (
+            <div className="bg-slate-900 border-b border-slate-800 animate-fade-in">
+                <div className="max-w-4xl mx-auto p-6 flex flex-col items-center gap-4">
+                    <div className="text-center space-y-1">
+                        <h3 className="text-lg font-bold text-white">{isPt ? "Configuração da API Gemini" : "Gemini API Configuration"}</h3>
+                        <p className="text-xs text-slate-400">{isPt ? "Insira sua chave para habilitar os recursos de IA." : "Insert your key to enable AI features."}</p>
+                    </div>
+                    <div className="flex w-full max-w-md gap-2">
+                        <input 
+                            type="password"
+                            placeholder={isPt ? "Cole sua chave aqui..." : "Paste your key here..."}
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                        />
+                        <button 
+                            onClick={() => saveKey(apiKey)}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-2 rounded-xl text-sm transition-colors"
+                        >
+                            {isPt ? "Salvar" : "Save"}
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                        {isPt ? "Pegue sua chave em" : "Get your key at"}{" "}
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 underline italic">aistudio.google.com</a>
+                    </p>
+                </div>
+            </div>
+        )}
       </header>
 
       <main className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
         <div className="h-full w-full overflow-y-auto">
+            {!hasKey && activeGame === GameType.NONE && (
+                <div className="max-w-4xl mx-auto mt-8 px-4">
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+                        <div className="text-4xl">⚠️</div>
+                        <div className="flex-1 text-center md:text-left">
+                            <h4 className="font-bold text-amber-500 mb-1">{isPt ? "Atenção: API Key Necessária" : "Attention: API Key Required"}</h4>
+                            <p className="text-sm text-amber-200/70 leading-relaxed font-medium">
+                                {isPt 
+                                    ? "Para os jogos funcionarem, você precisa configurar sua chave do Google Gemini. Clique na chave dourada no cabeçalho acima para começar."
+                                    : "For the games to work, you need to configure your Google Gemini key. Click the golden key in the header above to start."
+                                }
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => setShowKeyInput(true)}
+                            className="whitespace-nowrap bg-amber-500 hover:bg-amber-400 text-amber-950 font-black px-6 py-3 rounded-xl text-sm shadow-xl transition-all"
+                        >
+                            {isPt ? "CONFIGURAR AGORA" : "CONFIGURE NOW"}
+                        </button>
+                    </div>
+                </div>
+            )}
             {renderGame()}
         </div>
       </main>

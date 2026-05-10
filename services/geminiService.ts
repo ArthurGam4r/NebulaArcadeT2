@@ -4,8 +4,10 @@ import { AlchemyElement, EmojiChallenge, DilemmaScenario, LadderChallenge, Ladde
 
 // Rule: Always recreate the AI instance to use the most current API key from the execution context.
 const getAI = () => {
-  const key = process.env.GEMINI_API_KEY || process.env.API_KEY;
-  if (!key || key === "") {
+  const localStorageKey = typeof window !== 'undefined' ? localStorage.getItem('nebula_api_key') : null;
+  const key = process.env.GEMINI_API_KEY || process.env.API_KEY || localStorageKey;
+  
+  if (!key || key === "" || key === "INSERT_API_KEY_HERE") {
     throw new Error("API_KEY_MISSING");
   }
   return new GoogleGenAI({ apiKey: key });
