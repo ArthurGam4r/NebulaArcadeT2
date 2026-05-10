@@ -29,7 +29,7 @@ const LadderGame: React.FC = () => {
     const isPt = typeof navigator !== 'undefined' ? navigator.language.startsWith('pt') : true;
     const t = {
         title: isPt ? "Ponte Semântica" : "Semantic Bridge",
-        desc: isPt ? "Conecte as palavras usando associações." : "Connect the words using associations.",
+        desc: isPt ? "Conecte as palavras. Use pelo menos 2 degraus antes do alvo!" : "Connect the words. Use at least 2 steps before the target!",
         start: isPt ? "Início" : "Start",
         target: isPt ? "Alvo" : "Target",
         placeholder: isPt ? "Digite a próxima associação..." : "Type the next association...",
@@ -46,7 +46,8 @@ const LadderGame: React.FC = () => {
         hot: isPt ? "QUENTE 🔥" : "HOT 🔥",
         warm: isPt ? "MORNO 😐" : "WARM 😐",
         cold: isPt ? "FRIO ❄️" : "COLD ❄️",
-        proximity: isPt ? "Proximidade:" : "Proximity:"
+        proximity: isPt ? "Proximidade:" : "Proximity:",
+        tooShort: isPt ? "A ponte está curta demais! Adicione pelo menos 2 passos intermediários primeiro." : "The bridge is too short! Add at least 2 intermediate steps first."
     };
 
     const loadGame = async () => {
@@ -86,6 +87,15 @@ const LadderGame: React.FC = () => {
         e.preventDefault();
         if (!inputValue.trim() || !challenge || validating || won) return;
 
+        const guess = inputValue.trim();
+        
+        // Anti-skip logic: Require at least 2 intermediate steps (Start + Step 1 + Step 2 = 3 steps total)
+        if (guess.toLowerCase() === challenge.endWord.toLowerCase() && steps.length < 3) {
+            setFeedback(t.tooShort);
+            setProximity(100);
+            return;
+        }
+
         setValidating(true);
         setFeedback(null);
         setProximity(null);
@@ -93,7 +103,6 @@ const LadderGame: React.FC = () => {
         setQuotaError(false);
 
         const currentWord = steps[steps.length - 1].word;
-        const guess = inputValue.trim();
 
         try {
             const result = await validateLadderStep(currentWord, challenge.endWord, guess);
@@ -103,7 +112,7 @@ const LadderGame: React.FC = () => {
                 setInputValue('');
                 setProximity(null);
 
-                // Check win AFTER validation
+                // Check win condition
                 if (guess.toLowerCase() === challenge.endWord.toLowerCase()) {
                     setWon(true);
                 }
@@ -192,7 +201,7 @@ const LadderGame: React.FC = () => {
                         </div>
                         
                         <div className="h-0.5 flex-1 bg-slate-700 mx-4 relative">
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-500 text-xs bg-slate-800 px-2">
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-500 text-[10px] font-black bg-slate-800 px-2 uppercase tracking-tighter">
                                 {steps.length - 1} {t.steps}
                             </div>
                         </div>
@@ -252,15 +261,15 @@ const LadderGame: React.FC = () => {
                                     {/* Feedback Area */}
                                     {(feedback || proximity !== null) && (
                                         <div className="mb-3 bg-slate-800 rounded-lg p-3 flex items-center justify-between border border-slate-700 animate-fade-in">
-                                            <span className="text-slate-300 text-sm flex-1 mr-2">{feedback}</span>
+                                            <span className="text-slate-300 text-[11px] font-bold flex-1 mr-2 leading-tight uppercase tracking-tight">{feedback}</span>
                                             {proximity !== null && (
                                                 <div className="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded">
-                                                    <span className={`font-bold text-sm ${getProximityColor(proximity)}`}>
+                                                    <span className={`font-bold text-[10px] uppercase ${getProximityColor(proximity)}`}>
                                                         {getProximityText(proximity)}
                                                     </span>
                                                     <div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
                                                         <div 
-                                                            className={`h-full ${proximity < 25 ? 'bg-blue-500' : proximity < 60 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                            className={`h-full transition-all duration-500 ${proximity < 25 ? 'bg-blue-500' : proximity < 60 ? 'bg-yellow-500' : 'bg-red-500'}`} 
                                                             style={{ width: `${proximity}%` }}
                                                         />
                                                     </div>
